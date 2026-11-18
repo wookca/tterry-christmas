@@ -1,0 +1,134 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #dfe9f3;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color: #23303d;
+  -webkit-user-select: none; user-select: none;
+  touch-action: none;
+}
+#app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hidden { display: none !important; }
+
+/* 로딩 */
+.loading {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  background: #eef3f8; z-index: 30; font-size: 15px; color: #4b5c6d;
+}
+.spinner {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 4px solid #cfdbe7; border-top-color: #d6343a;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 캐릭터 선택 */
+.select {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 16px;
+  background: linear-gradient(to top, rgba(20, 35, 55, 0.55), rgba(20, 35, 55, 0) 65%);
+}
+.select-panel {
+  width: 100%; max-width: 720px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 20px; padding: 20px 18px 18px;
+  box-shadow: 0 10px 40px rgba(20, 35, 55, 0.25);
+}
+.select-panel h1 { margin: 0; font-size: 22px; }
+.select-panel .sub { margin: 4px 0 14px; font-size: 14px; color: #607080; }
+.cards {
+  display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px;
+  scroll-snap-type: x mandatory;
+}
+.card {
+  flex: 0 0 104px; scroll-snap-align: start;
+  border: 2px solid #e1e8ef; border-radius: 14px; background: #f6f9fc;
+  padding: 8px 6px 10px; text-align: center; cursor: pointer;
+  font: inherit; color: inherit;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.card:hover:not(:disabled) { transform: translateY(-2px); }
+.card.selected { border-color: #d6343a; background: #fff3f2; }
+.card:disabled { cursor: default; opacity: 0.5; }
+.card .thumb {
+  width: 88px; height: 88px; margin: 0 auto 6px; border-radius: 10px;
+  background: #e6edf4 center / cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; color: #a9b7c5;
+}
+.card .name { font-size: 14px; font-weight: 700; }
+.card .tag { font-size: 11px; color: #8796a5; margin-top: 2px; }
+.start-btn {
+  width: 100%; margin-top: 6px; padding: 14px; border: 0; border-radius: 12px;
+  background: #d6343a; color: #fff; font: inherit; font-size: 16px; font-weight: 700;
+  cursor: pointer;
+}
+.start-btn:disabled { background: #c8d2dc; cursor: default; }
+
+/* HUD */
+.hud {
+  position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10;
+  display: flex; justify-content: space-between; align-items: center; pointer-events: none;
+}
+.hud-name {
+  background: rgba(255, 255, 255, 0.85); padding: 8px 14px; border-radius: 999px;
+  font-weight: 700; font-size: 14px;
+}
+.hud-right { display: flex; gap: 6px; }
+.hud-btn {
+  pointer-events: auto; border: 0; border-radius: 999px; padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.85); font: inherit; font-size: 13px; cursor: pointer;
+}
+.help {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+  background: rgba(35, 48, 61, 0.65); color: #fff; padding: 8px 14px; border-radius: 999px;
+  font-size: 13px; text-align: center; width: max-content; max-width: calc(100% - 32px); pointer-events: none;
+}
+@media (max-width: 420px) { .help { font-size: 11px; } }
+
+/* 눈 모으기 링 게이지 (캐릭터 머리 위) */
+.ring { position: fixed; z-index: 9; width: 46px; height: 46px; transform: translate(-50%, -50%); pointer-events: none; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 6; }
+.ring-bg { stroke: rgba(35, 48, 61, 0.45); }
+.ring-fill { stroke: #3a8ee6; stroke-linecap: round; stroke-dasharray: 125.66; stroke-dashoffset: 125.66;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.9)); }
+.ring.paused .ring-fill { stroke: #9fb0c0; }
+
+/* 던지기 파워 게이지 (바) */
+.power {
+  position: fixed; z-index: 9; width: 72px; height: 11px; transform: translate(-50%, -50%);
+  background: rgba(35, 48, 61, 0.55); border: 2px solid #fff; border-radius: 999px; overflow: hidden;
+  pointer-events: none;
+}
+.power-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffd34d, #ff8a3d 70%, #d6343a); }
+.power.max { box-shadow: 0 0 0 2px #d6343a; }
+
+/* 온라인 */
+.name-row { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; }
+.name-row label { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.name-row input {
+  flex: 1; min-width: 0; padding: 11px 12px; border: 2px solid #e1e8ef; border-radius: 10px;
+  font: inherit; font-size: 15px; background: #f6f9fc; -webkit-user-select: text; user-select: text;
+}
+.name-row input:focus { outline: none; border-color: #d6343a; background: #fff; }
+.hud-left { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.hud-online {
+  background: rgba(35, 48, 61, 0.7); color: #fff; padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+}
+.labels { position: fixed; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; }
+.name-tag {
+  position: absolute; left: 0; top: 0; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.85); color: #23303d; font-size: 12px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px; box-shadow: 0 1px 4px rgba(20, 35, 55, 0.2);
+}
+.net-status {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 11;
+  background: rgba(214, 52, 58, 0.9); color: #fff; padding: 8px 14px; border-radius: 999px; font-size: 13px;
+}
+
+/* 게임 이름 */
+.game-logo { font-size: 34px; font-weight: 900; color: #d6343a; letter-spacing: -0.5px; margin-bottom: 6px; }
+.game-title { font-size: 13px; font-weight: 800; color: #d6343a; letter-spacing: 0.5px; margin-bottom: 2px; }

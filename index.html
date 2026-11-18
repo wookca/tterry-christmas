@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tterry Christmas</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- 로딩 -->
+  <div id="loading" class="loading">
+    <div class="game-logo">Tterry Christmas</div>
+    <div class="spinner"></div>
+    <p id="loadingText">눈밭을 준비하는 중…</p>
+  </div>
+
+  <!-- 캐릭터 선택 -->
+  <div id="select" class="select hidden">
+    <div class="select-panel">
+      <div class="game-title">Tterry Christmas</div>
+      <h1>캐릭터 선택</h1>
+      <p class="sub">함께 눈밭을 걸을 친구를 골라주세요</p>
+      <div id="cards" class="cards"></div>
+      <div id="nameRow" class="name-row hidden"><label for="nameInput">닉네임</label><input id="nameInput" maxlength="12" placeholder="비우면 자동으로 정해져요" autocomplete="off"></div>
+      <button id="startBtn" class="start-btn" disabled>이 캐릭터로 시작</button>
+    </div>
+  </div>
+
+  <!-- 게임 중 HUD -->
+  <div id="hud" class="hud hidden">
+    <div class="hud-left"><div class="hud-name" id="hudName"></div><div class="hud-online hidden" id="online"></div></div>
+    <div class="hud-right">
+      <button id="liteBtn" class="hud-btn hidden">경량 모델로 보기</button>
+      <button id="changeBtn" class="hud-btn">캐릭터 변경</button>
+    </div>
+  </div>
+  <div id="ring" class="ring hidden">
+    <svg viewBox="0 0 48 48"><circle class="ring-bg" cx="24" cy="24" r="20"/><circle id="ringFill" class="ring-fill" cx="24" cy="24" r="20"/></svg>
+  </div>
+  <div id="power" class="power hidden"><div id="powerFill" class="power-fill"></div></div>
+  <div id="labels" class="labels"></div>
+  <div id="netStatus" class="net-status hidden"></div>
+  <div id="help" class="help hidden">클릭: 이동 · 꾹 누르기: 눈 모으기 → 꾹 눌러 조준, 떼면 던지기 · 가운데 드래그: 카메라 · 휠: 줌 · 방향키: 이동</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./lib/three.module.min.js",
+      "three/addons/": "./lib/addons/"
+    }
+  }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

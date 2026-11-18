@@ -1,0 +1,14 @@
+# GitHub에 올리지 않을 것 (원본 모델·가이드는 공개 저장소에 올라가면 누구나 받을 수 있어요)
+CH_model/
+CH_guide/
+*.fbx
+*.ai
+CH_model_test/potteling_uv_layout.png
+CH_model_test/potteling_uv.obj
+CH_model_test/potteling.mtl
+CH_model_test/포떼링_lite.glb
+node_modules/
+.wrangler/
+preview_*.png
+guide_source.html
+*_재질가이드.png

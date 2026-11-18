@@ -1,0 +1,17 @@
+// Cloudflare 실시간 서버 배포 설정 (npx wrangler deploy)
+// - 게임 파일은 GitHub Pages, 이 Worker는 접속/동기화만 담당
+// - 주소는 Cloudflare 기본 주소: https://tterry-christmas.<내 계정>.workers.dev (도메인/DNS 설정 없음)
+{
+  "name": "tterry-christmas",
+  "main": "server/worker.js",
+  "compatibility_date": "2025-06-01",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [{ "name": "CHANNELS", "class_name": "Channel" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Channel"] }],
+  "vars": {
+    // 게임을 여는 GitHub Pages 주소 (예: https://내아이디.github.io). 여러 개면 쉼표로 구분. 비우면 모두 허용
+    "ALLOWED_ORIGINS": "https://wookca.github.io"
+  }
+}
