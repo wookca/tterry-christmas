@@ -357,8 +357,7 @@ function buildCards() {
     b.disabled = !ch.ready;
     b.innerHTML = `
       <div class="thumb" ${ch.thumb ? `style="background-image:url(${ch.thumb})"` : ''}>${ch.thumb ? '' : '?'}</div>
-      <div class="name">${ch.name}</div>
-      <div class="tag">${ch.variants ? '누를수록 색 변경' : '선택 가능'}</div>`;
+      <div class="name">${ch.name}</div>`;
     // 버전이 있는 떼리앙(양념포떼링)은 이미 고른 상태에서 다시 누를 때마다 다음 색으로
     if (ch.ready) b.addEventListener('click', () => {
       if (ch.variants && state.selectedId === ch.id) {
