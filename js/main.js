@@ -44,12 +44,13 @@ const CHARACTERS = [
   { id: 'sof', name: '솦떼링', file: 'models/sof.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'sun', name: '썬떼링', ready: false },
   { id: 'ji', name: '지떼링', ready: false },
-  { id: 'jing', name: '징떼링', ready: false },
+  { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'chi', name: '치떼링', ready: false },
-  { id: 'ko', name: '코떼링', ready: false },
+  // 코떼링 파일은 다른 떼리앙보다 약 1/3 크기로 저장돼 있어서 키(약 120)에 맞춰 키움
+  { id: 'ko', name: '코떼링', file: 'models/ko.glb', ready: true, outline: true, unitScale: GLB_SCALE * (118 / 36.14) },
   { id: 'cookie', name: '쿠키 토네떼링', ready: false },
   { id: 'ham', name: '햄떼링', ready: false },
-  { id: 'hwa', name: '화떼링', ready: false },
+  { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'wheel', name: '휠떼링', ready: false },
 ];
 
