@@ -41,6 +41,21 @@ export function animateBody(body, st, dt, moving, gathering) {
     body.rotation.y = 0;
   }
 
+  // 눈에 맞아 쓰러지기 (fallDir 1: 앞으로, -1: 뒤로). 발을 축으로 눕고, 몸 두께만큼 살짝 띄움
+  if (st.fall === undefined) st.fall = 0;
+  if (st.fallTarget === undefined) st.fallTarget = 0;
+  if (st.fallDir === undefined) st.fallDir = 1;
+  const fk = st.fallTarget > st.fall ? 9 : 5;           // 쓰러질 땐 빠르게, 일어날 땐 조금 천천히
+  st.fall += (st.fallTarget - st.fall) * Math.min(1, dt * fk);
+  if (st.fall > 0.001) {
+    const f = st.fall;
+    const keep = 1 - f;
+    body.rotation.x = body.rotation.x * keep + st.fallDir * f * (Math.PI / 2 - 0.08);
+    body.rotation.z *= keep;
+    body.position.y = body.position.y * keep + f * 0.32;
+    body.scale.set(1 + (body.scale.x - 1) * keep, 1 + (body.scale.y - 1) * keep, 1 + (body.scale.z - 1) * keep);
+  }
+
   // 등장 연출: 살짝 위에서 통 떨어지기
   if (st.dropT < 1) {
     st.dropT = Math.min(1, st.dropT + dt * 2.2);

@@ -45,7 +45,7 @@ export class RemotePlayers {
     const r = {
       id: p.id, root, body, ball, label,
       target: new THREE.Vector3(p.x, 0, p.z), yaw: p.yaw || 0, targetYaw: p.yaw || 0,
-      m: !!p.m, g: !!p.g, b: !!p.b, a: !!p.a,
+      m: !!p.m, g: !!p.g, b: !!p.b, a: !!p.a, d: p.d || 0,
       anim: { walk: 0, phase: Math.random() * 6, crouch: 0, throwT: 1, dropT: 0 },
     };
     this.map.set(p.id, r);
@@ -60,7 +60,7 @@ export class RemotePlayers {
     if (!r) return;
     r.target.set(m.x, 0, m.z);
     r.targetYaw = m.yaw;
-    r.m = !!m.m; r.g = !!m.g; r.a = !!m.a;
+    r.m = !!m.m; r.g = !!m.g; r.a = !!m.a; r.d = m.d || 0;
     if (!!m.b !== r.b) { r.b = !!m.b; r.ball.visible = r.b; }
   }
 
@@ -102,10 +102,12 @@ export class RemotePlayers {
       else r.root.position.lerp(r.target, Math.min(1, dt * 10));
       r.yaw = angleLerp(r.yaw, r.targetYaw, Math.min(1, dt * 12));
       r.root.rotation.y = r.yaw;
-      animateBody(r.body, r.anim, dt, r.m || dist > 0.05, r.g);
+      r.anim.fallTarget = r.d ? 1 : 0;
+      if (r.d) r.anim.fallDir = r.d === 1 ? 1 : -1;
+      animateBody(r.body, r.anim, dt, !r.d && (r.m || dist > 0.05), r.g && !r.d);
 
       // 이름표 (머리 위)
-      v.copy(r.root.position).setY(1.45).project(this.camera);
+      v.copy(r.root.position).setY(1.45 - 0.75 * (r.anim.fall || 0)).project(this.camera);
       const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       r.label.style.display = visible ? '' : 'none';
       if (visible) r.label.style.transform = `translate(${(v.x * 0.5 + 0.5) * w}px, ${(-v.y * 0.5 + 0.5) * h}px) translate(-50%, -100%)`;

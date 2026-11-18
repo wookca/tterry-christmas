@@ -129,7 +129,7 @@ export class Channel extends DurableObject {
   }
 
   publicState(p) {
-    return { id: p.id, name: p.name, char: p.char, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a };
+    return { id: p.id, name: p.name, char: p.char, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d || 0 };
   }
 
   async webSocketMessage(ws, data) {
@@ -153,7 +153,7 @@ export class Channel extends DurableObject {
         p.x = num(msg.x, -WORLD_RADIUS, WORLD_RADIUS);
         p.z = num(msg.z, -WORLD_RADIUS, WORLD_RADIUS);
         p.yaw = num(msg.yaw, -10, 10);
-        p.m = 0; p.g = 0; p.b = 0; p.a = 0;
+        p.m = 0; p.g = 0; p.b = 0; p.a = 0; p.d = 0;
         ws.serializeAttachment(p);
         const others = this.players().filter((o) => o.p.id !== p.id).map((o) => this.publicState(o.p));
         ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: MAX_PLAYERS }));
@@ -169,8 +169,9 @@ export class Channel extends DurableObject {
         p.g = msg.g ? 1 : 0; // 눈 모으는 중
         p.b = msg.b ? 1 : 0; // 눈덩이 들고 있음
         p.a = msg.a ? 1 : 0; // 조준 중
+        p.d = msg.d === 1 || msg.d === 2 ? msg.d : 0; // 눈에 맞아 쓰러짐 (1: 앞으로, 2: 뒤로)
         ws.serializeAttachment(p);
-        this.broadcast({ t: 'state', id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a }, p.id);
+        this.broadcast({ t: 'state', id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d }, p.id);
         return;
       }
       case 'throw': {

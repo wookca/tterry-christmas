@@ -118,6 +118,17 @@ export class SnowballSystem {
     }
   }
 
+  // 날아가는 눈덩이 중 hit(ball, pos)가 true인 것은 그 자리에서 부서짐
+  hitTest(hit) {
+    for (let i = this.flying.length - 1; i >= 0; i--) {
+      const b = this.flying[i];
+      if (!hit(b, b.mesh.position)) continue;
+      this.burst(b.mesh.position, b.velocity);
+      this.scene.remove(b.mesh);
+      this.flying.splice(i, 1);
+    }
+  }
+
   // 퍼석! 3~5조각으로 부서짐
   burst(at, incoming) {
     const n = 3 + Math.floor(Math.random() * 3);
@@ -127,7 +138,7 @@ export class SnowballSystem {
       mesh.castShadow = true; // 조각은 작아서 외곽선 없이
       const size = 0.7 + Math.random() * 0.6;
       mesh.scale.setScalar(size);
-      mesh.position.set(at.x, size * 0.4 + 0.05, at.z);
+      mesh.position.set(at.x, Math.max(at.y || 0, size * 0.4 + 0.05), at.z);
       mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.8;
       const sp = 0.8 + Math.random() * 1.4;

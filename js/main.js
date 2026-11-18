@@ -406,6 +406,7 @@ async function startGame() {
   const ch = CHARACTERS.find((c) => c.id === state.selectedId);
   if (!ch) return;
   const model = await loadCharacter(ch, state.variant);
+  state.down = null; // 떼리앙을 바꾸면 다시 서 있는 상태로
 
   if (state.model) body.remove(state.model);
   state.model = model;
@@ -494,6 +495,7 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
   if (!state.playing) return;
+  if (e.button !== 1 && getUpIfDown()) return; // 누워 있으면 클릭/터치로 일어나기 (가운데 버튼 카메라는 그대로)
   const touch = e.pointerType === 'touch';
   let kind;
   if (e.button === 1) kind = 'camera';
@@ -709,6 +711,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && state.playing) {
     e.preventDefault();
     if (e.repeat || spaceDown) return;
+    if (getUpIfDown()) return;
     spaceDown = true;
     beginSnowAction();
     return;
@@ -716,6 +719,7 @@ window.addEventListener('keydown', (e) => {
   const k = KEYMAP[e.code];
   if (!k || !state.playing) return;
   e.preventDefault();
+  if (!e.repeat) getUpIfDown();
   state.keys.add(k);
   state.target = null; // 키보드를 쓰면 클릭 목적지는 취소
 });
@@ -807,7 +811,7 @@ function updateSnowAction(dt) {
 function updatePlayer(dt) {
   const move = new THREE.Vector3();
 
-  if (state.playing && !state.gathering) { // 모으는 동안엔 멈춤 (방향키를 누르면 모으기가 잠시 멈춤)
+  if (state.playing && !state.gathering && !state.down && performance.now() > state.risingUntil) { // 모으는 동안엔 멈춤 (방향키를 누르면 모으기가 잠시 멈춤)
     // 방향키: 화면 기준 위/아래/좌/우
     if (state.keys.size) {
       forward.set(-Math.sin(state.camYaw), 0, -Math.cos(state.camYaw));
@@ -839,7 +843,57 @@ function updatePlayer(dt) {
     player.rotation.y = state.yaw;
   }
 
+  state.fallTarget = state.down ? 1 : 0;
+  if (state.down) state.fallDir = state.down.dir;
   animateBody(body, state, dt, moving, state.gathering);
+}
+
+// ─────────────────────────────────────────────
+// 눈덩이에 맞기: 내 떼리앙은 내 컴퓨터가 판정 (다른 사람 화면에는 상태로 전해짐)
+// 뒤에서 맞으면 앞으로, 앞에서 맞으면 뒤로 쓰러지고, 아무 조작이나 하면 일어남
+// 일어난 뒤 1초 동안은 맞아도 안 쓰러짐
+// ─────────────────────────────────────────────
+const HIT_RADIUS = 0.5, HIT_HEIGHT = CHAR_HEIGHT * 1.05;
+const GETUP_TIME = 450, IMMUNE_TIME = 1000; // ms
+state.down = null;
+state.risingUntil = 0;
+state.immuneUntil = 0;
+function hitsBody(pos, at) {
+  return pos.y < HIT_HEIGHT && Math.hypot(pos.x - at.x, pos.z - at.z) < HIT_RADIUS;
+}
+function checkSnowballHits() {
+  const now = performance.now();
+  snowballs.hitTest((ball, pos) => {
+    // 내가 맞음 (내 공은 제외)
+    if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position)) {
+      if (!state.down && now > state.immuneUntil) {
+        const facing = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+        const fromBehind = ball.velocity.x * facing.x + ball.velocity.z * facing.z > 0;
+        knockDown(fromBehind ? 1 : -1);
+      }
+      return true;
+    }
+    // 다른 사람이 맞음: 눈덩이만 부서지게 (쓰러지는 건 그 사람 컴퓨터가 판정해서 알려줌)
+    for (const r of remotes.map.values()) {
+      if (String(r.id) !== ball.owner && hitsBody(pos, r.root.position)) return true;
+    }
+    return false;
+  });
+}
+function knockDown(dir) {
+  endAction(true);
+  state.target = null;
+  state.down = { dir };
+  state.dropT = 1;
+}
+// 누워 있을 때 조작하면 일어남. true를 돌려주면 그 입력은 일어나는 데만 씀
+function getUpIfDown() {
+  if (!state.down) return false;
+  state.down = null;
+  const now = performance.now();
+  state.risingUntil = now + GETUP_TIME;
+  state.immuneUntil = now + GETUP_TIME + IMMUNE_TIME;
+  return true;
 }
 
 function updateCamera(dt, time) {
@@ -896,6 +950,7 @@ function loop() {
   updateSnowAction(dt);
   updatePlayer(dt);
   snowballs.update(dt);
+  checkSnowballHits();
   remotes.update_frame(dt);
   updateMyLabel();
   sendState();
@@ -975,7 +1030,7 @@ $('labels').appendChild(myLabel);
 const labelPos = new THREE.Vector3();
 function updateMyLabel() {
   if (!state.playing || !player.visible || !myLabel.textContent) { myLabel.style.display = 'none'; return; }
-  labelPos.copy(player.position).setY(1.45).project(camera);
+  labelPos.copy(player.position).setY(1.45 - 0.75 * (state.fall || 0)).project(camera);
   const visible = labelPos.z < 1 && Math.abs(labelPos.x) < 1.1 && Math.abs(labelPos.y) < 1.1;
   myLabel.style.display = visible ? '' : 'none';
   if (visible) myLabel.style.transform = `translate(${(labelPos.x * 0.5 + 0.5) * window.innerWidth}px, ${(-labelPos.y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -100%)`;
@@ -1029,6 +1084,7 @@ function sendState() {
     x: Math.round(player.position.x * 100) / 100, z: Math.round(player.position.z * 100) / 100,
     yaw: Math.round(state.yaw * 100) / 100,
     m: state.walk > 0.5 ? 1 : 0, g: state.gathering ? 1 : 0, b: state.hasBall ? 1 : 0, a: state.aiming ? 1 : 0,
+    d: state.down ? (state.down.dir > 0 ? 1 : 2) : 0,
   };
   const key = JSON.stringify(st);
   if (key === lastSent && now - lastSendAt < 2000) return;
