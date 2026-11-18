@@ -269,7 +269,7 @@ function loadCharacter(ch) {
       resolve(holder);
      } catch (err) { reject(err); }
     }, (e) => {
-      if (e.lengthComputable) setLoading(`캐릭터 불러오는 중… ${Math.round((e.loaded / e.total) * 100)}%`);
+      if (e.lengthComputable) setLoading(`떼리앙 불러오는 중… ${Math.round((e.loaded / e.total) * 100)}%`);
     }, reject);
   });
   modelCache.set(ch.id, p);
@@ -320,13 +320,6 @@ function buildCards() {
       <div class="tag">${ch.ready ? '선택 가능' : '준비 중'}</div>`;
     if (ch.ready) b.addEventListener('click', () => selectCard(ch.id));
     wrap.appendChild(b);
-  }
-  const waiting = CHARACTERS.filter((c) => !c.ready).length;
-  if (waiting) {
-    const more = document.createElement('div');
-    more.className = 'card more';
-    more.innerHTML = `<div class="thumb">+${waiting}</div><div class="name">친구들</div><div class="tag">준비 중</div>`;
-    wrap.appendChild(more);
   }
 }
 
@@ -982,7 +975,7 @@ async function init() {
     first.thumb = makeThumbnail(model);
   } catch (err) {
     console.error(err);
-    setLoading('캐릭터 모델을 불러오지 못했어요. 로컬 서버로 열었는지 확인해 주세요.');
+    setLoading('떼리앙 모델을 불러오지 못했어요. 로컬 서버로 열었는지 확인해 주세요.');
     return;
   }
   buildCards();

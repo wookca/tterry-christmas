@@ -1,6 +1,6 @@
 # Tterry Christmas (프로토타입)
 
-흰 눈밭에서 캐릭터를 골라 걸어다니는 three.js 웹 게임입니다.
+흰 눈밭에서 떼리앙을 골라 걸어다니는 three.js 웹 게임입니다.
 
 ## 실행
 - `start_game.bat` 더블클릭 → 브라우저가 http://localhost:8000/ 을 엽니다.
