@@ -358,8 +358,14 @@ function buildCards() {
     b.innerHTML = `
       <div class="thumb" ${ch.thumb ? `style="background-image:url(${ch.thumb})"` : ''}>${ch.thumb ? '' : '?'}</div>
       <div class="name">${ch.name}</div>
-      <div class="tag">${ch.ready ? '선택 가능' : '준비 중'}</div>`;
-    if (ch.ready) b.addEventListener('click', () => selectCard(ch.id));
+      <div class="tag">${ch.variants ? '누를수록 색 변경' : '선택 가능'}</div>`;
+    // 버전이 있는 떼리앙(양념포떼링)은 이미 고른 상태에서 다시 누를 때마다 다음 색으로
+    if (ch.ready) b.addEventListener('click', () => {
+      if (ch.variants && state.selectedId === ch.id) {
+        const i = ch.variants.findIndex((v) => v.id === state.variant);
+        pickVariant(ch, ch.variants[(i + 1) % ch.variants.length].id);
+      } else selectCard(ch.id);
+    });
     wrap.appendChild(b);
   }
 }
@@ -370,27 +376,13 @@ function selectCard(id) {
   $('startBtn').disabled = false;
   const ch = CHARACTERS.find((c) => c.id === id);
   if (autoName && $('nameInput').value.trim() === '') autoName = null; // 자동 닉네임도 떼리앙 이름에 맞춰 다시
-  // 버전 고르기 (양념포떼링: 빨강/주황/초록/갈색)
-  const row = $('variantRow');
-  row.innerHTML = '';
-  row.classList.toggle('hidden', !ch.variants);
+  // 버전(양념포떼링 빨강/주황/초록/갈색)은 카드를 다시 누를 때마다 바뀜
   if (!ch.variants) { state.variant = null; return; }
   if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
-  for (const v of ch.variants) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'swatch' + (v.id === state.variant ? ' selected' : '');
-    b.style.setProperty('--sw', v.color);
-    b.title = v.name;
-    b.innerHTML = `<i></i><span>${v.name}</span>`;
-    b.addEventListener('click', () => pickVariant(ch, v.id));
-    row.appendChild(b);
-  }
 }
 
 async function pickVariant(ch, variantId) {
   state.variant = variantId;
-  document.querySelectorAll('#variantRow .swatch').forEach((b, i) => b.classList.toggle('selected', ch.variants[i].id === variantId));
   // 카드 그림도 고른 색으로
   const model = await loadCharacter(ch, variantId);
   const card = document.querySelector(`.card[data-id="${ch.id}"] .thumb`);
