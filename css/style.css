@@ -108,6 +108,16 @@ html, body {
 .ico .barfg { fill: #ff8a3d; }
 .guide-touch { display: none; }
 @media (hover: none) and (pointer: coarse) { .guide-pc { display: none; } .guide-touch { display: block; } }
+/* 폰: 떼리앙 카드를 위아래 두 줄로 놓고 옆으로 넘겨 보기 */
+@media (max-width: 520px) {
+  .cards {
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 116px; padding-bottom: 8px;
+    overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+    touch-action: pan-x; scrollbar-width: thin;
+  }
+  .card { scroll-snap-align: start; }
+}
+
 /* 좁은 화면(폰): 그림 + 제목만 작게, 가운데 떼리앙을 가리지 않게 */
 @media (max-width: 520px) {
   .guide { width: 132px; left: 6px; padding: 6px 8px 2px; border-radius: 12px; }
