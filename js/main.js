@@ -337,7 +337,7 @@ function openSelect() {
   if (!player.visible) spawnGlow.visible = true;
   $('select').classList.remove('hidden');
   $('hud').classList.add('hidden');
-  $('help').classList.add('hidden');
+  $('guide').classList.add('hidden');
 }
 
 async function startGame() {
@@ -371,11 +371,26 @@ async function startGame() {
   $('liteBtn').textContent = USE_LITE ? '원본 모델로 보기' : '경량 모델로 보기';
   $('select').classList.add('hidden');
   $('hud').classList.remove('hidden');
-  $('help').classList.remove('hidden');
   state.playing = true;
+  applyGuide();
 }
 
 $('startBtn').addEventListener('click', startGame);
+
+// 조작 가이드 켜기/끄기 (선택은 기억해 둠)
+let guideOn = true;
+try { guideOn = localStorage.getItem('guideOn') !== '0'; } catch {}
+function applyGuide() {
+  $('guide').classList.toggle('hidden', !guideOn || !state.playing);
+  $('guideBtn').textContent = guideOn ? '가이드 끄기' : '가이드 보기';
+}
+function setGuide(on) {
+  guideOn = on;
+  try { localStorage.setItem('guideOn', on ? '1' : '0'); } catch {}
+  applyGuide();
+}
+$('guideBtn').addEventListener('click', () => setGuide(!guideOn));
+$('guideClose').addEventListener('click', () => setGuide(false));
 $('changeBtn').addEventListener('click', openSelect);
 $('liteBtn').addEventListener('click', () => {
   const q = new URLSearchParams(location.search);

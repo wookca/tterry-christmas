@@ -80,12 +80,49 @@ html, body {
   pointer-events: auto; border: 0; border-radius: 999px; padding: 9px 14px;
   background: rgba(255, 255, 255, 0.85); font: inherit; font-size: 13px; cursor: pointer;
 }
-.help {
-  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
-  background: rgba(35, 48, 61, 0.65); color: #fff; padding: 8px 14px; border-radius: 999px;
-  font-size: 13px; text-align: center; width: max-content; max-width: calc(100% - 32px); pointer-events: none;
+/* 조작 가이드 (왼쪽에 떠 있는 패널) */
+.guide {
+  position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 10;
+  width: 232px; max-height: calc(100% - 140px); overflow-y: auto;
+  background: rgba(255, 255, 255, 0.9); border-radius: 16px; padding: 10px 12px 6px;
+  box-shadow: 0 6px 24px rgba(20, 35, 55, 0.18);
 }
-@media (max-width: 420px) { .help { font-size: 11px; } }
+.guide-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 14px; color: #d6343a; margin-bottom: 4px; }
+.guide-x { border: 0; background: none; font-size: 22px; line-height: 1; color: #8796a5; cursor: pointer; padding: 0 2px; }
+.guide-list { list-style: none; margin: 0; padding: 0; }
+.guide-list li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid #edf1f5; }
+.guide-list li:first-child { border-top: 0; }
+.guide-list b { display: block; font-size: 13px; }
+.guide-list span { display: block; font-size: 12px; color: #607080; line-height: 1.35; }
+.g-ico { flex: 0 0 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border-radius: 10px; }
+.ico { width: 36px; height: 36px; overflow: visible; }
+.ico .body { fill: #fff; stroke: #23303d; stroke-width: 2.5; stroke-linejoin: round; }
+.ico .ln { fill: none; stroke: #23303d; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.ico .off { fill: #fff; }
+.ico .wheel { fill: #c8d2dc; }
+.ico .hl, .ico .hlc { fill: #d6343a; }
+.ico .key { fill: #fff; stroke: #23303d; stroke-width: 2.5; }
+.ico .ringbg { fill: none; stroke: #c8d2dc; stroke-width: 3.5; }
+.ico .ringfg { fill: none; stroke: #3a8ee6; stroke-width: 3.5; stroke-linecap: round; }
+.ico .barbg { fill: #c8d2dc; }
+.ico .barfg { fill: #ff8a3d; }
+.guide-touch { display: none; }
+@media (hover: none) and (pointer: coarse) { .guide-pc { display: none; } .guide-touch { display: block; } }
+/* 좁은 화면(폰): 그림 + 제목만 작게, 가운데 떼리앙을 가리지 않게 */
+@media (max-width: 520px) {
+  .guide { width: 132px; left: 6px; padding: 6px 8px 2px; border-radius: 12px; }
+  .guide-head { font-size: 12px; }
+  .guide-list li { gap: 7px; padding: 4px 0; }
+  .guide-list b { font-size: 11px; line-height: 1.25; }
+  .guide-list span { display: none; }
+  .g-ico { flex-basis: 32px; height: 32px; border-radius: 8px; }
+  .ico { width: 24px; height: 24px; }
+  .hud { top: 8px; left: 8px; right: 8px; align-items: flex-start; gap: 6px; }
+  .hud-name { font-size: 12px; padding: 7px 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+  .hud-btn { font-size: 12px; padding: 7px 10px; }
+}
+.hud-name, .hud-btn { white-space: nowrap; }
+.hud-right { flex-wrap: wrap; justify-content: flex-end; }
 
 /* 눈 모으기 링 게이지 (캐릭터 머리 위) */
 .ring { position: fixed; z-index: 9; width: 46px; height: 46px; transform: translate(-50%, -50%); pointer-events: none; }
