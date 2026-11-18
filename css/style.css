@@ -39,8 +39,7 @@ html, body {
 .select-panel h1 { margin: 0; font-size: 22px; }
 .select-panel .sub { margin: 4px 0 14px; font-size: 14px; color: #607080; }
 .cards {
-  display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px;
-  scroll-snap-type: x mandatory;
+  display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 2px 10px;
 }
 .card {
   flex: 0 0 104px; scroll-snap-align: start;
@@ -52,6 +51,8 @@ html, body {
 .card:hover:not(:disabled) { transform: translateY(-2px); }
 .card.selected { border-color: #d6343a; background: #fff3f2; }
 .card:disabled { cursor: default; opacity: 0.5; }
+.card.more { cursor: default; opacity: 0.55; }
+.card.more .thumb { font-size: 24px; font-weight: 800; }
 .card .thumb {
   width: 88px; height: 88px; margin: 0 auto 6px; border-radius: 10px;
   background: #e6edf4 center / cover no-repeat;

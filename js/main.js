@@ -308,7 +308,8 @@ const setLoading = (t) => { $('loadingText').textContent = t; };
 function buildCards() {
   const wrap = $('cards');
   wrap.innerHTML = '';
-  for (const ch of CHARACTERS) {
+  // 지금은 고를 수 있는 캐릭터만 보여줌 (캐릭터가 많아지면 좌우 스크롤 다시 켜기)
+  for (const ch of CHARACTERS.filter((c) => c.ready)) {
     const b = document.createElement('button');
     b.className = 'card';
     b.dataset.id = ch.id;
@@ -319,6 +320,13 @@ function buildCards() {
       <div class="tag">${ch.ready ? '선택 가능' : '준비 중'}</div>`;
     if (ch.ready) b.addEventListener('click', () => selectCard(ch.id));
     wrap.appendChild(b);
+  }
+  const waiting = CHARACTERS.filter((c) => !c.ready).length;
+  if (waiting) {
+    const more = document.createElement('div');
+    more.className = 'card more';
+    more.innerHTML = `<div class="thumb">+${waiting}</div><div class="name">친구들</div><div class="tag">준비 중</div>`;
+    wrap.appendChild(more);
   }
 }
 
