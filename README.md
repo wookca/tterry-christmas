@@ -19,10 +19,16 @@
 ## 파일
 - `index.html`, `css/style.css`, `js/main.js` : 게임 코드
 - `lib/` : three.js r170 (오프라인용으로 포함)
-- `CH_model/` : 캐릭터 FBX
+- `models/` : 게임에서 쓰는 떼리앙 모델(glb)과 바꿔 끼우는 텍스처 (`CH_model/lowpoly/color` 정리본에서 가져옴)
+- `CH_model/` : 원본 FBX (저장소에는 안 올라감)
 
-## 캐릭터 추가
-`js/main.js` 위쪽 `CHARACTERS` 목록에서 `ready: true`, `file`, `modelRotX`(Z-up 모델이면 -Math.PI/2), `modelYaw`(얼굴이 앞을 보도록 회전값)를 채우면 됩니다.
+## 떼리앙 추가
+`js/main.js` 위쪽 `CHARACTERS` 목록에서 `ready: true`, `file: 'models/이름.glb'`, `unitScale: GLB_SCALE`을 채우면 됩니다.
+(glb는 Y-up, 얼굴이 +Z. 재질 이름별로 부위가 나뉘어 있으면 부위 사이에 외곽선이 들어갑니다.)
+
+### 같은 모델, 다른 무늬 (예: 양념포떼링 빨강/주황/초록/갈색)
+모델 파일은 하나(`models/yangnyeom.glb`)만 쓰고, `variantMaterial: 'M_Card'` 재질의 텍스처만 `variants`의 PNG로 바꿔 끼웁니다.
+새 색을 추가하려면 PNG를 `models/`에 넣고 `variants`에 한 줄 추가하면 됩니다.
 
 ## 참고
 - 검은 외곽선은 화면 공간 방식(`js/outline.js`)이라 끊김 없이 그려지고, 팔·몸통 같은 부위 경계에도 선이 들어갑니다.

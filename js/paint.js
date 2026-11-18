@@ -55,6 +55,7 @@ function assignPartIds(geo, comps) {
   const ids = new Float32Array(geo.attributes.position.count);
   const big = comps.filter((c) => c.tris.length >= MIN_PART_TRIS);
   big.forEach((c, i) => { c.partId = i + 1; c.center = c.box.getCenter(new THREE.Vector3()); });
+  geo.userData.partCount = Math.max(1, big.length);
   for (const c of comps) {
     if (c.partId) continue;
     const ctr = c.box.getCenter(new THREE.Vector3());
@@ -188,6 +189,7 @@ export function labelParts(mesh, idOffset = 0) {
   if (geo.index) { geo = geo.toNonIndexed(); mesh.geometry = geo; }
   assignPartIds(geo, findComponents(geo));
   if (idOffset) { const a = geo.attributes.partId.array; for (let i = 0; i < a.length; i++) a[i] += idOffset; }
+  return geo.userData.partCount; // 이 메시가 쓴 부위 번호 개수
 }
 
 export function paintModel(characterId, mesh) {

@@ -24,16 +24,24 @@ const CAM_PITCH = 0.65, CAM_PITCH_MIN = 0.12, CAM_PITCH_MAX = 1.35; // 내려다
 // modelRotX: 모델이 Z-up으로 저장돼 있으면 -PI/2 로 세워줌
 // outline: 검은 외곽선 그리기 여부
 // modelYaw: 세운 뒤 얼굴이 +Z(앞)를 보도록 돌리는 각도
+// glb 모델(CH_model/lowpoly/color 정리본): Y-up, 얼굴 +Z, 단위 cm → unitScale로 키를 서로 맞춤 (포떼링 124 = CHAR_HEIGHT)
+// variants: 모델은 하나만 쓰고 재질 하나(material)의 텍스처만 바꿔 끼우는 버전들
+const GLB_SCALE = CHAR_HEIGHT / 124.04;
 const CHARACTERS = [
-  { id: 'potteling', name: '포떼링', file: 'CH_model/포떼링.fbx', ready: true, modelRotX: -Math.PI / 2, modelYaw: 0, outline: true,
-    // 시험용 경량 모델 (삼각형 약 9천 개, 자동 UV) + 따로 수정할 수 있는 텍스처 이미지
-    liteFile: 'CH_model_test/potteling_uv.glb', liteTexture: 'CH_model_test/potteling_texture.png' },
-  { id: 'yangnyeom', name: '양념포떼링', ready: false },
+  { id: 'potteling', name: '포떼링', file: 'models/potteling.glb', ready: true, outline: true, unitScale: GLB_SCALE },
+  { id: 'yangnyeom', name: '양념포떼링', file: 'models/yangnyeom.glb', ready: true, outline: true, unitScale: GLB_SCALE,
+    variantMaterial: 'M_Card',
+    variants: [
+      { id: 'red', name: '빨강', color: '#d42a24', map: 'models/yangnyeom_card_red.png' },
+      { id: 'orange', name: '주황', color: '#ff7a1a', map: 'models/yangnyeom_card_orange.png' },
+      { id: 'green', name: '초록', color: '#4cb848', map: 'models/yangnyeom_card_green.png' },
+      { id: 'brown', name: '갈색', color: '#8c2418', map: 'models/yangnyeom_card_brown.png' },
+    ] },
   { id: 'neo', name: '너떼링', ready: false },
   { id: 'yangneo', name: '양너떼링', ready: false },
   { id: 'longchi', name: '롱치떼링', ready: false },
   { id: 'ppyeo', name: '뼈떼링', ready: false },
-  { id: 'sof', name: '솦떼링', ready: false },
+  { id: 'sof', name: '솦떼링', file: 'models/sof.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'sun', name: '썬떼링', ready: false },
   { id: 'ji', name: '지떼링', ready: false },
   { id: 'jing', name: '징떼링', ready: false },
@@ -201,7 +209,38 @@ const textureLoader = new THREE.TextureLoader();
 let USE_LITE = new URLSearchParams(location.search).has('lite') || !['localhost', '127.0.0.1'].includes(location.hostname);
 const modelCache = new Map();
 
-function loadCharacter(ch) {
+// 버전(variant)이 있는 떼리앙: 모델은 한 번만 불러서 공유하고, 지정한 재질의 텍스처만 바꾼 복제본을 만든다
+function defaultVariant(ch) { return ch.variants ? ch.variants[0].id : null; }
+function loadCharacter(ch, variantId) {
+  if (!ch.variants) return loadBaseCharacter(ch);
+  const v = ch.variants.find((x) => x.id === variantId) || ch.variants[0];
+  const key = `${ch.id}-${v.id}`;
+  if (modelCache.has(key)) return modelCache.get(key);
+  const p = Promise.all([loadBaseCharacter(ch), textureLoader.loadAsync(encodeURI(v.map))]).then(([base, tex]) => {
+    tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const model = base.clone(true); // 지오메트리는 공유
+    model.traverse((o) => {
+      if (o.isMesh && o.material && o.material.name === ch.variantMaterial) {
+        o.material = o.material.clone();
+        o.material.map = tex;
+        o.material.color.set(0xffffff);
+      }
+    });
+    model.userData.clips = base.userData.clips;
+    return model;
+  });
+  modelCache.set(key, p);
+  return p;
+}
+// 네트워크로 주고받는 떼리앙 이름: "yangnyeom-red" 처럼 버전까지
+function charCode(ch, variantId) { return ch.variants ? `${ch.id}-${variantId || defaultVariant(ch)}` : ch.id; }
+function parseCharCode(code) {
+  const [id, variant] = String(code || '').split('-');
+  const ch = CHARACTERS.find((c) => c.id === id && c.ready) || CHARACTERS.find((c) => c.ready);
+  return { ch, variant };
+}
+
+function loadBaseCharacter(ch) {
   if (modelCache.has(ch.id)) return modelCache.get(ch.id);
   const p = new Promise((resolve, reject) => {
     const file = USE_LITE && ch.liteFile ? ch.liteFile : ch.file;
@@ -225,6 +264,7 @@ function loadCharacter(ch) {
 
       const meshes = [];
       fbx.traverse((o) => { if (o.isMesh) meshes.push(o); });
+      let nextPart = 0; // glb: 재질(부위)마다 부위 번호를 이어서 매김 → 부위 사이에 외곽선
       meshes.forEach((o) => {
         o.castShadow = true;
         o.receiveShadow = false; // 자기 그림자로 얼굴이 칙칙해지지 않게 (땅에는 그림자 그대로)
@@ -233,9 +273,9 @@ function loadCharacter(ch) {
         // glb 안에 따로 색이 정해진 부위(눈·입 등)는 그 색 그대로
         const ownColor = isGltf && !textured;
         const painted = !textured && !ownColor && paintModel(ch.id, o); // 텍스처가 없으면 코드로 색 입히기 (정점 색)
-        if (ownColor) labelParts(o, 100 + meshes.indexOf(o) * 50); // 부위 번호가 몸통과 겹치지 않게
+        if (isGltf) nextPart += labelParts(o, nextPart);
         if (textured) {
-          labelParts(o);
+          if (!isGltf) labelParts(o);
           // 텍스처 이미지 파일을 따로 지정했으면 그걸 사용 (이미지만 고쳐도 게임에 바로 반영)
           if (USE_LITE && ch.liteTexture) {
             const t = liteTex;
@@ -244,7 +284,8 @@ function loadCharacter(ch) {
           }
         }
         o.material = new THREE.MeshStandardMaterial({
-          color: painted || textured ? 0xffffff : (old && old.color ? old.color.clone() : 0x808080),
+          name: old && old.name ? old.name : '',
+          color: painted || (textured && !isGltf) ? 0xffffff : (old && old.color ? old.color.clone() : 0x808080),
           map: old && old.map ? old.map : null,
           vertexColors: !!o.geometry.attributes.color,
           roughness: 0.8,
@@ -256,7 +297,7 @@ function loadCharacter(ch) {
       wrap.updateMatrixWorld(true);
       let box = new THREE.Box3().setFromObject(wrap);
       const size = box.getSize(new THREE.Vector3());
-      wrap.scale.setScalar(CHAR_HEIGHT / size.y);
+      wrap.scale.setScalar(ch.unitScale || CHAR_HEIGHT / size.y);
       wrap.updateMatrixWorld(true);
       box = new THREE.Box3().setFromObject(wrap);
       const c = box.getCenter(new THREE.Vector3());
@@ -327,6 +368,33 @@ function selectCard(id) {
   state.selectedId = id;
   document.querySelectorAll('.card').forEach((c) => c.classList.toggle('selected', c.dataset.id === id));
   $('startBtn').disabled = false;
+  const ch = CHARACTERS.find((c) => c.id === id);
+  if (autoName && $('nameInput').value.trim() === '') autoName = null; // 자동 닉네임도 떼리앙 이름에 맞춰 다시
+  // 버전 고르기 (양념포떼링: 빨강/주황/초록/갈색)
+  const row = $('variantRow');
+  row.innerHTML = '';
+  row.classList.toggle('hidden', !ch.variants);
+  if (!ch.variants) { state.variant = null; return; }
+  if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
+  for (const v of ch.variants) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch' + (v.id === state.variant ? ' selected' : '');
+    b.style.setProperty('--sw', v.color);
+    b.title = v.name;
+    b.innerHTML = `<i></i><span>${v.name}</span>`;
+    b.addEventListener('click', () => pickVariant(ch, v.id));
+    row.appendChild(b);
+  }
+}
+
+async function pickVariant(ch, variantId) {
+  state.variant = variantId;
+  document.querySelectorAll('#variantRow .swatch').forEach((b, i) => b.classList.toggle('selected', ch.variants[i].id === variantId));
+  // 카드 그림도 고른 색으로
+  const model = await loadCharacter(ch, variantId);
+  const card = document.querySelector(`.card[data-id="${ch.id}"] .thumb`);
+  if (card && state.variant === variantId) card.style.backgroundImage = `url(${makeThumbnail(model)})`;
 }
 
 function openSelect() {
@@ -343,7 +411,7 @@ function openSelect() {
 async function startGame() {
   const ch = CHARACTERS.find((c) => c.id === state.selectedId);
   if (!ch) return;
-  const model = await loadCharacter(ch);
+  const model = await loadCharacter(ch, state.variant);
 
   if (state.model) body.remove(state.model);
   state.model = model;
@@ -857,9 +925,9 @@ window.addEventListener('resize', () => {
 // 온라인 (같은 채널 사람들과 위치/눈덩이 주고받기)
 // ─────────────────────────────────────────────
 let net = null;
-const remotes = new RemotePlayers(scene, camera, (charId) => {
-  const ch = CHARACTERS.find((c) => c.id === charId && c.ready) || CHARACTERS.find((c) => c.ready);
-  return loadCharacter(ch);
+const remotes = new RemotePlayers(scene, camera, (code) => {
+  const { ch, variant } = parseCharCode(code);
+  return loadCharacter(ch, variant);
 }, $('labels'));
 
 // 닉네임을 비워두면 "형용사 + 캐릭터 이름" (예: 바삭한 포떼링). 형용사는 4글자 이하 (서버 12자 제한)
@@ -941,7 +1009,7 @@ function connectOnline(ch) {
     onStatus: setNetStatus,
   });
   net.join(() => ({
-    name: myName(), char: ch.id,
+    name: myName(), char: charCode(ch, state.variant),
     x: player.position.x, z: player.position.z, yaw: state.yaw,
   }));
 }
@@ -986,8 +1054,9 @@ async function init() {
 
   const first = CHARACTERS.find((c) => c.ready);
   try {
-    const model = await loadCharacter(first);
-    first.thumb = makeThumbnail(model);
+    await Promise.all(CHARACTERS.filter((c) => c.ready).map(async (c) => {
+      c.thumb = makeThumbnail(await loadCharacter(c, defaultVariant(c)));
+    }));
   } catch (err) {
     console.error(err);
     setLoading('떼리앙 모델을 불러오지 못했어요. 로컬 서버로 열었는지 확인해 주세요.');
