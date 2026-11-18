@@ -183,10 +183,11 @@ export const REGIONS = {
 const PAINTERS = { potteling: paintPotteling };
 
 // 텍스처가 있는 모델: 색칠은 건너뛰고 부위 번호만 매김 (외곽선 경계용)
-export function labelParts(mesh) {
+export function labelParts(mesh, idOffset = 0) {
   let geo = mesh.geometry;
   if (geo.index) { geo = geo.toNonIndexed(); mesh.geometry = geo; }
   assignPartIds(geo, findComponents(geo));
+  if (idOffset) { const a = geo.attributes.partId.array; for (let i = 0; i < a.length; i++) a[i] += idOffset; }
 }
 
 export function paintModel(characterId, mesh) {

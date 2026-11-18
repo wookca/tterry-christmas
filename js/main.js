@@ -224,10 +224,13 @@ function loadCharacter(ch) {
       fbx.traverse((o) => { if (o.isMesh) meshes.push(o); });
       meshes.forEach((o) => {
         o.castShadow = true;
-        o.receiveShadow = true;
+        o.receiveShadow = false; // 자기 그림자로 얼굴이 칙칙해지지 않게 (땅에는 그림자 그대로)
         const old = Array.isArray(o.material) ? o.material[0] : o.material;
         const textured = !!(old && old.map);
-        const painted = !textured && paintModel(ch.id, o); // 텍스처가 없으면 코드로 색 입히기 (정점 색)
+        // glb 안에 따로 색이 정해진 부위(눈·입 등)는 그 색 그대로
+        const ownColor = isGltf && !textured;
+        const painted = !textured && !ownColor && paintModel(ch.id, o); // 텍스처가 없으면 코드로 색 입히기 (정점 색)
+        if (ownColor) labelParts(o, 100 + meshes.indexOf(o) * 50); // 부위 번호가 몸통과 겹치지 않게
         if (textured) {
           labelParts(o);
           // 텍스처 이미지 파일을 따로 지정했으면 그걸 사용 (이미지만 고쳐도 게임에 바로 반영)
