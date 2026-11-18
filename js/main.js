@@ -317,29 +317,6 @@ function loadBaseCharacter(ch) {
   return p;
 }
 
-// 카드 썸네일 (모델을 한 번 렌더링해서 이미지로)
-function makeThumbnail(model) {
-  const size = 176;
-  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-  r.setSize(size, size);
-  r.outputColorSpace = THREE.SRGBColorSpace;
-  r.toneMapping = THREE.ACESFilmicToneMapping;
-  const s = new THREE.Scene();
-  s.add(new THREE.HemisphereLight(0xffffff, 0xb8c6d6, 1.8));
-  const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(2, 4, 5); s.add(d);
-  const clone = model.clone(true);
-  clone.rotation.y = -0.45;
-  s.add(clone);
-  const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
-  cam.position.set(0, CHAR_HEIGHT * 0.95, CHAR_HEIGHT * 2.6);
-  cam.lookAt(0, CHAR_HEIGHT * 0.45, 0);
-  r.render(s, cam);
-  const url = r.domElement.toDataURL('image/png');
-  r.dispose();
-  r.forceContextLoss();
-  return url;
-}
-
 // ─────────────────────────────────────────────
 // UI
 // ─────────────────────────────────────────────
@@ -383,12 +360,17 @@ function selectCard(id) {
   if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
 }
 
+// 선택 카드 그림: 가이드 시트에서 잘라낸 일러스트 (img/cards)
+function cardImage(ch, variantId) {
+  return `img/cards/${variantId ? `${ch.id}-${variantId}` : ch.id}.png`;
+}
+
 async function pickVariant(ch, variantId) {
   state.variant = variantId;
   // 카드 그림도 고른 색으로
-  const model = await loadCharacter(ch, variantId);
   const card = document.querySelector(`.card[data-id="${ch.id}"] .thumb`);
-  if (card && state.variant === variantId) card.style.backgroundImage = `url(${makeThumbnail(model)})`;
+  if (card) card.style.backgroundImage = `url(${cardImage(ch, variantId)})`;
+  loadCharacter(ch, variantId).catch(console.error); // 미리 불러두기
 }
 
 function openSelect() {
@@ -1123,7 +1105,8 @@ async function init() {
   const first = CHARACTERS.find((c) => c.ready);
   try {
     await Promise.all(CHARACTERS.filter((c) => c.ready).map(async (c) => {
-      c.thumb = makeThumbnail(await loadCharacter(c, defaultVariant(c)));
+      await loadCharacter(c, defaultVariant(c));
+      c.thumb = cardImage(c, defaultVariant(c));
     }));
   } catch (err) {
     console.error(err);
