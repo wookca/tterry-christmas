@@ -358,6 +358,7 @@ async function startGame() {
   spawnGlow.visible = false;
   $('hudName').textContent = ch.liteFile ? `${ch.name} (${ch.loadedInfo})` : ch.name;
   $('liteBtn').classList.toggle('hidden', !ch.liteFile || state.online);
+  myLabel.textContent = myName();
   if (state.online) {
     $('hudName').textContent = `${ch.name} · ${myName()}`;
     connectOnline(ch);
@@ -814,6 +815,7 @@ function loop() {
   updatePlayer(dt);
   snowballs.update(dt);
   remotes.update_frame(dt);
+  updateMyLabel();
   sendState();
   updateCamera(dt, time);
   updateEffects(dt, time);
@@ -840,11 +842,36 @@ const remotes = new RemotePlayers(scene, camera, (charId) => {
   return loadCharacter(ch);
 }, $('labels'));
 
+// 닉네임을 비워두면 "형용사 + 캐릭터 이름" (예: 바삭한 포떼링). 형용사는 4글자 이하 (서버 12자 제한)
+const NAME_WORDS = ['눅눅한', '차가운', '바삭한', '따끈한', '짭짤한', '달콤한', '고소한', '촉촉한', '쫄깃한', '매콤한',
+  '말랑한', '포근한', '든든한', '새콤한', '배고픈', '졸린', '신난', '들뜬', '수줍은', '용감한', '행복한', '반짝이는', '꽁꽁 언', '눈 덮인'];
+let autoName = null;
+function savedName() {
+  try { return localStorage.getItem('snowName') || ''; } catch { return ''; }
+}
 function myName() {
-  const typed = $('nameInput') ? $('nameInput').value.trim() : '';
-  if (typed) { try { localStorage.setItem('snowName', typed); } catch {} return typed.slice(0, 12); }
-  try { const saved = localStorage.getItem('snowName'); if (saved) return saved; } catch {}
-  return '';
+  const typed = $('nameInput') ? $('nameInput').value.trim().slice(0, 12) : '';
+  if (typed) { try { localStorage.setItem('snowName', typed); } catch {} return typed; }
+  try { localStorage.removeItem('snowName'); } catch {}
+  const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS[0];
+  if (!autoName || autoName.char !== ch.id) {
+    autoName = { char: ch.id, name: `${NAME_WORDS[Math.floor(Math.random() * NAME_WORDS.length)]} ${ch.name}` };
+  }
+  return autoName.name;
+}
+
+// 내 머리 위 이름표
+const myLabel = document.createElement('div');
+myLabel.className = 'name-tag me';
+myLabel.style.display = 'none';
+$('labels').appendChild(myLabel);
+const labelPos = new THREE.Vector3();
+function updateMyLabel() {
+  if (!state.playing || !player.visible || !myLabel.textContent) { myLabel.style.display = 'none'; return; }
+  labelPos.copy(player.position).setY(1.45).project(camera);
+  const visible = labelPos.z < 1 && Math.abs(labelPos.x) < 1.1 && Math.abs(labelPos.y) < 1.1;
+  myLabel.style.display = visible ? '' : 'none';
+  if (visible) myLabel.style.transform = `translate(${(labelPos.x * 0.5 + 0.5) * window.innerWidth}px, ${(-labelPos.y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -100%)`;
 }
 
 function setNetStatus(text) {
@@ -864,7 +891,7 @@ function connectOnline(ch) {
     onWelcome: (m) => {
       remotes.clear();
       m.players.forEach((p) => remotes.add(p));
-      if (m.name) $('hudName').textContent = `${ch.name} · ${m.name}`;
+      if (m.name) { $('hudName').textContent = `${ch.name} · ${m.name}`; myLabel.textContent = m.name; }
       lastSent = null;
       updateOnlineHud();
     },
@@ -915,10 +942,10 @@ async function init() {
   // 서버(Cloudflare)에서 열었으면 온라인 모드
   const server = await detectServer();
   state.online = !!server;
+  $('nameRow').classList.remove('hidden');
+  $('nameInput').value = savedName();
   if (state.online) {
     USE_LITE = true;
-    $('nameRow').classList.remove('hidden');
-    $('nameInput').value = myName();
     $('select').querySelector('.sub').textContent = '닉네임을 정하고, 함께 눈밭을 걸을 친구를 골라주세요';
   }
 

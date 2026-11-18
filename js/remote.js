@@ -105,7 +105,7 @@ export class RemotePlayers {
       animateBody(r.body, r.anim, dt, r.m || dist > 0.05, r.g);
 
       // 이름표 (머리 위)
-      v.copy(r.root.position).setY(1.75).project(this.camera);
+      v.copy(r.root.position).setY(1.45).project(this.camera);
       const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       r.label.style.display = visible ? '' : 'none';
       if (visible) r.label.style.transform = `translate(${(v.x * 0.5 + 0.5) * w}px, ${(-v.y * 0.5 + 0.5) * h}px) translate(-50%, -100%)`;
