@@ -43,7 +43,8 @@ export default {
     }
 
     if (url.pathname === '/api/info') {
-      return cors(Response.json({ ok: true, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
+      return cors(Response.json({ ok: true, version: 2, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -186,6 +187,17 @@ export class Channel extends DurableObject {
           vx: r2(num(msg.vx, -40, 40)), vy: r2(num(msg.vy, -10, 30)), vz: r2(num(msg.vz, -40, 40)),
         };
         this.broadcast(t, p.id);
+        return;
+      }
+      case 'hit': {
+        // 던진 사람 화면에서 내 눈덩이가 누군가에게 맞음 → 맞은 사람에게만 알려줌 (쓰러질지는 그쪽에서 판단)
+        if (!p.joined) return;
+        const target = Number(msg.id);
+        const d = msg.d === 1 || msg.d === 2 ? msg.d : 1;
+        for (const o of this.players()) {
+          if (o.p.id !== target || o.p.id === p.id) continue;
+          try { o.ws.send(JSON.stringify({ t: 'hit', by: p.id, d })); } catch { /* 끊긴 소켓 */ }
+        }
         return;
       }
       case 'ping':

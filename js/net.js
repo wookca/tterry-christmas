@@ -63,6 +63,7 @@ export class Net {
         case 'leave': this.h.onLeave?.(m.id); break;
         case 'state': this.h.onState?.(m); break;
         case 'throw': this.h.onThrow?.(m); break;
+        case 'hit': this.h.onHit?.(m); break;
       }
     };
     ws.onclose = () => {

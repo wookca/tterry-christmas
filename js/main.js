@@ -18,7 +18,7 @@ const MOVE_SPEED = 4.2;           // 초당 이동 거리
 const TURN_SPEED = 10;            // 방향 전환 속도
 const GATHER_TIME = 1.0;          // 눈 모으는 시간(초)
 const CAM_DIST = 16, CAM_DIST_MIN = 3.5, CAM_DIST_MAX = 28; // 캐릭터와 카메라 거리
-const CAM_PITCH = 0.85, CAM_PITCH_MIN = 0.12, CAM_PITCH_MAX = 1.35; // 내려다보는 각도(라디안)
+const CAM_PITCH = 0.62, CAM_PITCH_MIN = 0.12, CAM_PITCH_MAX = 1.35; // 내려다보는 각도(라디안)
 
 // 캐릭터 목록. ready:false 는 "준비 중"으로 표시
 // modelRotX: 모델이 Z-up으로 저장돼 있으면 -PI/2 로 세워줌
@@ -853,7 +853,7 @@ function updatePlayer(dt) {
 // 뒤에서 맞으면 앞으로, 앞에서 맞으면 뒤로 쓰러지고, 아무 조작이나 하면 일어남
 // 일어난 뒤 1초 동안은 맞아도 안 쓰러짐
 // ─────────────────────────────────────────────
-const HIT_RADIUS = 0.5, HIT_HEIGHT = CHAR_HEIGHT * 1.05;
+const HIT_RADIUS = 0.62, HIT_HEIGHT = CHAR_HEIGHT + 0.25; // 몸통 + 눈덩이 크기만큼 넉넉하게
 const GETUP_TIME = 450, IMMUNE_TIME = 1000; // ms
 state.down = null;
 state.risingUntil = 0;
@@ -866,19 +866,25 @@ function checkSnowballHits() {
   snowballs.hitTest((ball, pos) => {
     // 내가 맞음 (내 공은 제외)
     if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position)) {
-      if (!state.down && now > state.immuneUntil) {
-        const facing = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-        const fromBehind = ball.velocity.x * facing.x + ball.velocity.z * facing.z > 0;
-        knockDown(fromBehind ? 1 : -1);
-      }
+      tryKnockDown(fallDirFor(ball.velocity, state.yaw));
       return true;
     }
-    // 다른 사람이 맞음: 눈덩이만 부서지게 (쓰러지는 건 그 사람 컴퓨터가 판정해서 알려줌)
+    // 다른 사람이 맞음: 눈덩이가 부서지고, 내가 던진 공이면 맞은 사람에게 알려줌 (그 사람이 쓰러짐)
     for (const r of remotes.map.values()) {
-      if (String(r.id) !== ball.owner && hitsBody(pos, r.root.position)) return true;
+      if (String(r.id) === ball.owner || !hitsBody(pos, r.root.position)) continue;
+      if (ball.owner === 'me') net?.send({ t: 'hit', id: r.id, d: fallDirFor(ball.velocity, r.yaw) > 0 ? 1 : 2 });
+      return true;
     }
     return false;
   });
+}
+// 공이 날아가는 방향과 바라보는 방향이 같으면 뒤에서 맞은 것 → 앞으로(1), 아니면 뒤로(-1)
+function fallDirFor(velocity, yaw) {
+  return velocity.x * Math.sin(yaw) + velocity.z * Math.cos(yaw) > 0 ? 1 : -1;
+}
+function tryKnockDown(dir) {
+  if (!state.playing || state.down || performance.now() < state.immuneUntil) return;
+  knockDown(dir);
 }
 function knockDown(dir) {
   endAction(true);
@@ -1060,6 +1066,7 @@ function connectOnline(ch) {
     onJoin: (p) => { remotes.add(p); updateOnlineHud(); },
     onLeave: (id) => { remotes.remove(id); updateOnlineHud(); },
     onState: (m) => remotes.update(m),
+    onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onThrow: (m) => {
       remotes.thrown(m.id);
       snowballs.throwBall({ owner: String(m.id), from: new THREE.Vector3(m.fx, m.fy, m.fz), velocity: new THREE.Vector3(m.vx, m.vy, m.vz) });
@@ -1104,6 +1111,7 @@ async function init() {
 
   // 서버(Cloudflare)에서 열었으면 온라인 모드
   const server = await detectServer();
+  if (server && (server.version || 1) < 2) console.warn('[Tterry] 서버가 옛날 버전이에요. deploy.bat을 다시 실행하면 쓰러지기가 다른 사람에게도 보여요.');
   state.online = !!server;
   $('nameRow').classList.remove('hidden');
   $('nameInput').value = savedName();
@@ -1128,6 +1136,6 @@ async function init() {
   openSelect();
 
   // 디버그/테스트용
-  window.__game = { state, player, CHARACTERS, snowballs, remotes, get net() { return net; } };
+  window.__game = { state, player, camera, CHARACTERS, snowballs, remotes, get net() { return net; } };
 }
 init();
