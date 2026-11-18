@@ -374,7 +374,10 @@ function selectCard(id) {
   document.querySelectorAll('.card').forEach((c) => c.classList.toggle('selected', c.dataset.id === id));
   $('startBtn').disabled = false;
   const ch = CHARACTERS.find((c) => c.id === id);
-  if (autoName && $('nameInput').value.trim() === '') autoName = null; // 자동 닉네임도 떼리앙 이름에 맞춰 다시
+  // 자동으로 만든 닉네임(형용사 + 떼리앙 이름)이면 떼리앙을 바꿀 때 이름도 같이 바꿈. 직접 쓴 이름은 그대로
+  const input = $('nameInput');
+  const auto = parseAutoName(input.value.trim());
+  if (auto && auto.ch.id !== ch.id) input.value = `${auto.word} ${ch.name}`;
   // 버전(양념포떼링 빨강/주황/초록/갈색)은 카드를 다시 누를 때마다 바뀜
   if (!ch.variants) { state.variant = null; return; }
   if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
@@ -925,6 +928,16 @@ const remotes = new RemotePlayers(scene, camera, (code) => {
 const NAME_WORDS = ['눅눅한', '차가운', '바삭한', '따끈한', '짭짤한', '달콤한', '고소한', '촉촉한', '쫄깃한', '매콤한',
   '말랑한', '포근한', '든든한', '새콤한', '배고픈', '졸린', '신난', '들뜬', '수줍은', '용감한', '행복한', '반짝이는', '꽁꽁 언', '눈 덮인'];
 let autoName = null;
+// "행복한 화떼링" 처럼 자동 닉네임 모양이면 { word, ch } 를 돌려줌
+function parseAutoName(text) {
+  for (const word of NAME_WORDS) {
+    if (!text.startsWith(word + ' ')) continue;
+    const rest = text.slice(word.length + 1);
+    const ch = CHARACTERS.find((c) => c.name === rest);
+    if (ch) return { word, ch };
+  }
+  return null;
+}
 // 랜덤 버튼: 누를 때마다 다음 형용사 (한 바퀴 돌 때까지 겹치지 않게 섞어서)
 let wordDeck = [];
 function nextRandomName() {
