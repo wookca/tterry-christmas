@@ -206,7 +206,10 @@ function loadCharacter(ch) {
   const p = new Promise((resolve, reject) => {
     const file = USE_LITE && ch.liteFile ? ch.liteFile : ch.file;
     const isGltf = /\.(glb|gltf)$/i.test(file);
-    (isGltf ? gltfLoader : fbxLoader).load(encodeURI(file), (loaded) => {
+    (isGltf ? gltfLoader : fbxLoader).load(encodeURI(file), async (loaded) => {
+     try {
+      // 텍스처 이미지 파일을 따로 지정했으면 먼저 불러둠 (카드 썸네일이 까맣게 나오지 않게)
+      const liteTex = USE_LITE && ch.liteTexture ? await textureLoader.loadAsync(encodeURI(ch.liteTexture)) : null;
       const fbx = isGltf ? loaded.scene : loaded;
       if (isGltf) fbx.animations = loaded.animations;
       let tris = 0;
@@ -235,7 +238,7 @@ function loadCharacter(ch) {
           labelParts(o);
           // 텍스처 이미지 파일을 따로 지정했으면 그걸 사용 (이미지만 고쳐도 게임에 바로 반영)
           if (USE_LITE && ch.liteTexture) {
-            const t = textureLoader.load(encodeURI(ch.liteTexture));
+            const t = liteTex;
             t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
             old.map = t;
           }
@@ -264,6 +267,7 @@ function loadCharacter(ch) {
       if (ch.outline) enableOutline(holder);
       holder.userData.clips = fbx.animations || [];
       resolve(holder);
+     } catch (err) { reject(err); }
     }, (e) => {
       if (e.lengthComputable) setLoading(`캐릭터 불러오는 중… ${Math.round((e.loaded / e.total) * 100)}%`);
     }, reject);
@@ -846,6 +850,21 @@ const remotes = new RemotePlayers(scene, camera, (charId) => {
 const NAME_WORDS = ['눅눅한', '차가운', '바삭한', '따끈한', '짭짤한', '달콤한', '고소한', '촉촉한', '쫄깃한', '매콤한',
   '말랑한', '포근한', '든든한', '새콤한', '배고픈', '졸린', '신난', '들뜬', '수줍은', '용감한', '행복한', '반짝이는', '꽁꽁 언', '눈 덮인'];
 let autoName = null;
+// 랜덤 버튼: 누를 때마다 다음 형용사 (한 바퀴 돌 때까지 겹치지 않게 섞어서)
+let wordDeck = [];
+function nextRandomName() {
+  const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS[0];
+  const current = $('nameInput').value.trim();
+  for (let tries = 0; tries < 3; tries++) {
+    if (!wordDeck.length) wordDeck = [...NAME_WORDS].sort(() => Math.random() - 0.5);
+    const name = `${wordDeck.pop()} ${ch.name}`;
+    if (name !== current) return name;
+  }
+  return current;
+}
+$('randomNameBtn').addEventListener('click', () => {
+  $('nameInput').value = nextRandomName();
+});
 function savedName() {
   try { return localStorage.getItem('snowName') || ''; } catch { return ''; }
 }

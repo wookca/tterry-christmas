@@ -113,6 +113,11 @@ html, body {
   flex: 1; min-width: 0; padding: 11px 12px; border: 2px solid #e1e8ef; border-radius: 10px;
   font: inherit; font-size: 15px; background: #f6f9fc; -webkit-user-select: text; user-select: text;
 }
+.dice-btn {
+  flex: 0 0 auto; width: 46px; height: 46px; border: 2px solid #e1e8ef; border-radius: 10px;
+  background: #f6f9fc; font-size: 22px; cursor: pointer; padding: 0;
+}
+.dice-btn:active { transform: scale(0.92); }
 .name-row input:focus { outline: none; border-color: #d6343a; background: #fff; }
 .hud-left { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .hud-online {
