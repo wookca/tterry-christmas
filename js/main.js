@@ -17,7 +17,7 @@ const CHAR_HEIGHT = 1.3;          // 캐릭터 키 (월드 단위)
 const MOVE_SPEED = 4.2;           // 초당 이동 거리
 const TURN_SPEED = 10;            // 방향 전환 속도
 const GATHER_TIME = 1.0;          // 눈 모으는 시간(초)
-const CAM_DIST = 12, CAM_DIST_MIN = 3.5, CAM_DIST_MAX = 22; // 캐릭터와 카메라 거리
+const CAM_DIST = 16, CAM_DIST_MIN = 3.5, CAM_DIST_MAX = 28; // 캐릭터와 카메라 거리
 const CAM_PITCH = 0.85, CAM_PITCH_MIN = 0.12, CAM_PITCH_MAX = 1.35; // 내려다보는 각도(라디안)
 
 // 캐릭터 목록. ready:false 는 "준비 중"으로 표시
@@ -903,7 +903,7 @@ function loop() {
   updateEffects(dt, time);
   renderer.render(scene, camera);
   // 만화 외곽선: 가까울수록 살짝 두껍게
-  outline.setThickness(THREE.MathUtils.clamp(2.4 * Math.sqrt(CAM_DIST / camera.position.distanceTo(lookAt)), 1.2, 3.2));
+  outline.setThickness(THREE.MathUtils.clamp(1.6 * Math.sqrt(CAM_DIST / camera.position.distanceTo(lookAt)), 1, 2.4));
   outline.render(scene, camera);
   requestAnimationFrame(loop);
 }
