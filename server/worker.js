@@ -12,9 +12,11 @@
 // ─────────────────────────────────────────────
 import { DurableObject } from 'cloudflare:workers';
 
-const MAX_PLAYERS = 50;   // 채널당 최대 인원
+const MAX_PLAYERS = 50;   // 홀수 채널(숲) 최대 인원
 const MAX_CHANNELS = 20;  // 채널 수 상한
-const WORLD_RADIUS = 30;
+// 채널마다 맵: 홀수 = 숲 (반지름 30, 50명), 짝수 = 큰 숲 (넓이 2배 = 반지름 30×√2, 100명). 게임 쪽 js/main.js MAPS와 같아야 함
+const maxFor = (ch) => (ch % 2 === 0 ? 100 : MAX_PLAYERS);
+const radiusFor = (ch) => (ch % 2 === 0 ? 30 * Math.SQRT2 : 30);
 const MAX_MSG = 1024;     // 메시지 최대 크기(바이트)
 
 // 접속을 허용할 주소인지 확인 (다른 사이트에서 몰래 붙는 것 방지)
@@ -44,7 +46,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 2, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 3, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -111,7 +113,7 @@ export class Channel extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
 
-    if (this.players().length >= MAX_PLAYERS) {
+    if (this.players().length >= maxFor(ch)) {
       server.send(JSON.stringify({ t: 'full', ch }));
       server.close(4001, 'channel full');
       return new Response(null, { status: 101, webSocket: client });
@@ -143,7 +145,7 @@ export class Channel extends DurableObject {
     switch (msg.t) {
       case 'hello': {
         if (p.joined) return;
-        if (this.players().length >= MAX_PLAYERS) {
+        if (this.players().length >= maxFor(p.ch)) {
           ws.send(JSON.stringify({ t: 'full', ch: p.ch }));
           ws.close(4001, 'channel full');
           return;
@@ -151,20 +153,22 @@ export class Channel extends DurableObject {
         p.joined = true;
         p.name = String(msg.name || '').replace(/[<>&"'`]/g, '').trim().slice(0, 12) || `눈사람${p.id}`;
         p.char = String(msg.char || 'potteling').replace(/[^a-z0-9_-]/gi, '').slice(0, 24);
-        p.x = num(msg.x, -WORLD_RADIUS, WORLD_RADIUS);
-        p.z = num(msg.z, -WORLD_RADIUS, WORLD_RADIUS);
+        const R = radiusFor(p.ch);
+        p.x = num(msg.x, -R, R);
+        p.z = num(msg.z, -R, R);
         p.yaw = num(msg.yaw, -10, 10);
         p.m = 0; p.g = 0; p.b = 0; p.a = 0; p.d = 0;
         ws.serializeAttachment(p);
         const others = this.players().filter((o) => o.p.id !== p.id).map((o) => this.publicState(o.p));
-        ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: MAX_PLAYERS }));
+        ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: maxFor(p.ch) }));
         this.broadcast({ t: 'join', p: this.publicState(p) }, p.id);
         return;
       }
       case 'state': {
         if (!p.joined) return;
-        p.x = r2(num(msg.x, -WORLD_RADIUS, WORLD_RADIUS, p.x));
-        p.z = r2(num(msg.z, -WORLD_RADIUS, WORLD_RADIUS, p.z));
+        const R = radiusFor(p.ch);
+        p.x = r2(num(msg.x, -R, R, p.x));
+        p.z = r2(num(msg.z, -R, R, p.z));
         p.yaw = r2(num(msg.yaw, -10, 10, p.yaw));
         p.m = msg.m ? 1 : 0; // 걷는 중
         p.g = msg.g ? 1 : 0; // 눈 모으는 중
@@ -183,7 +187,7 @@ export class Channel extends DurableObject {
         ws.serializeAttachment(p);
         const t = {
           t: 'throw', id: p.id,
-          fx: r2(num(msg.fx, -40, 40)), fy: r2(num(msg.fy, 0, 5)), fz: r2(num(msg.fz, -40, 40)),
+          fx: r2(num(msg.fx, -50, 50)), fy: r2(num(msg.fy, 0, 5)), fz: r2(num(msg.fz, -50, 50)),
           vx: r2(num(msg.vx, -40, 40)), vy: r2(num(msg.vy, -10, 30)), vz: r2(num(msg.vz, -40, 40)),
         };
         this.broadcast(t, p.id);

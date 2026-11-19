@@ -19,19 +19,30 @@ export const FADE_NEAR = 35, FADE_FAR = 90; // 안개와 같은 거리: 멀리 �
 
 // 맵 밖 나무처럼 여러 개를 한 번에 그리는 물체(InstancedMesh)가
 // 카메라와 내 떼리앙 사이를 가리면 그 부분만 뚫어서 보이게 함 (나무 재질과 외곽선 그리기에 같이 씀)
-export const seeThrough = { uFocus: { value: new THREE.Vector3() } };
+export const seeThrough = {
+  uFocus: { value: new THREE.Vector3() },   // 내 떼리앙 (월드 위치)
+  uFocusPx: { value: new THREE.Vector2() }, // 화면에서 내 떼리앙 위치 (픽셀)
+  uCutR: { value: 100 },                    // 화면에서 뚫는 동그라미 반지름 (픽셀)
+};
+// 화면 기준 동그라미 구멍: 내 떼리앙보다 카메라 쪽에 있는 나무만, 가장자리는 점점이 부드럽게
 export const SEE_THROUGH_GLSL = /* glsl */`
-  bool seeThroughCut(vec3 wp, vec3 cam, vec3 focus) {
-    if (distance(wp, cam) < 3.0) return true;              // 카메라 바로 앞
-    vec3 seg = focus - cam;
-    float t = clamp(dot(wp - cam, seg) / max(dot(seg, seg), 1e-4), 0.0, 1.0);
-    vec3 cp = cam + seg * t;
-    return t < 0.96 && length((wp - cp).xz) < 2.2;          // 카메라 → 떼리앙 시선 위
+  uniform vec3 uFocus;
+  uniform vec2 uFocusPx;
+  uniform float uCutR;
+  bool seeThroughCut(vec3 wp, vec3 cam) {
+    if (distance(wp, cam) < 2.5) return true;                       // 카메라 바로 앞
+    if (distance(wp, cam) > distance(uFocus, cam) - 0.6) return false; // 떼리앙 뒤쪽 나무는 그대로
+    float d = length(gl_FragCoord.xy - uFocusPx) / uCutR;
+    if (d >= 1.0) return false;
+    float soft = smoothstep(0.78, 1.0, d);                           // 가장자리 22%는 점점이 옅어지게
+    vec2 q = floor(gl_FragCoord.xy);
+    float dither = fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453);
+    return soft < dither;
   }`;
 
 // 부위 번호 + 깊이를 기록하는 재질
 const idMaterial = new THREE.ShaderMaterial({
-  uniforms: { uFocus: seeThrough.uFocus },
+  uniforms: seeThrough,
   vertexShader: /* glsl */`
     attribute float partId;
     varying float vPart;
@@ -50,14 +61,13 @@ const idMaterial = new THREE.ShaderMaterial({
       gl_Position = projectionMatrix * mv;
     }`,
   fragmentShader: /* glsl */`
-    uniform vec3 uFocus;
     varying float vPart;
     varying float vDepth;
     varying vec3 vWorld;
     ${SEE_THROUGH_GLSL}
     void main() {
       #ifdef USE_INSTANCING
-        if (seeThroughCut(vWorld, cameraPosition, uFocus)) discard;
+        if (seeThroughCut(vWorld, cameraPosition)) discard;
       #endif
       float d = clamp(vDepth / ${DEPTH_RANGE.toFixed(1)}, 0.0, 0.9999);
       float hi = floor(d * 255.0) / 255.0;

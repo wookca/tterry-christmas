@@ -15,8 +15,8 @@ import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } 
 // ─────────────────────────────────────────────
 // 설정
 // ─────────────────────────────────────────────
-const WORLD_RADIUS = 30;          // 흰 평지 반지름
-const SPAWN_RADIUS = 26;          // 외곽 스폰 거리 (중심에서)
+let WORLD_RADIUS = 30;            // 흰 평지 반지름 (채널 맵에 따라 바뀜, 아래 MAPS)
+const SPAWN_IN = 4;               // 외곽 스폰: 경계에서 이만큼 안쪽
 const CHAR_HEIGHT = 1.3;          // 캐릭터 키 (월드 단위)
 const MOVE_SPEED = 4.2;           // 초당 이동 거리
 const TURN_SPEED = 10;            // 방향 전환 속도
@@ -150,6 +150,17 @@ const edge = new THREE.Mesh(
 edge.rotation.x = -Math.PI / 2;
 edge.position.y = 0.005;
 scene.add(edge);
+// 맵 크기 바꾸기: 바닥·그림자판·바깥 눈밭·경계선을 새 반지름으로 다시 만듦
+function setWorldRadius(r) {
+  if (r === WORLD_RADIUS && ground.userData.r === r) return;
+  WORLD_RADIUS = r;
+  ground.userData.r = r;
+  const swap = (mesh, geo) => { mesh.geometry.dispose(); mesh.geometry = geo; };
+  swap(ground, new THREE.CircleGeometry(r, 96));
+  swap(shadowCatcher, new THREE.CircleGeometry(r, 96));
+  swap(outer, new THREE.RingGeometry(r, 140, 96));
+  swap(edge, new THREE.RingGeometry(r - 0.12, r, 160));
+}
 
 // 내리는 눈
 const SNOW_COUNT = 900;
@@ -234,7 +245,7 @@ snowballs.onBurst = (at) => {
 
 function pickSpawn() {
   const a = Math.random() * Math.PI * 2;
-  state.spawn.set(Math.cos(a) * SPAWN_RADIUS, 0, Math.sin(a) * SPAWN_RADIUS);
+  state.spawn.set(Math.cos(a) * (WORLD_RADIUS - SPAWN_IN), 0, Math.sin(a) * (WORLD_RADIUS - SPAWN_IN));
   // 카메라는 바깥쪽에서 중심을 바라보도록
   state.camYaw = Math.atan2(state.spawn.x, state.spawn.z);
   spawnGlow.position.set(state.spawn.x, 0.02, state.spawn.z);
@@ -246,24 +257,30 @@ function pickSpawn() {
 const fbxLoader = new FBXLoader();
 const gltfLoader = new GLTFLoader();
 // ─────────────────────────────────────────────
-// 채널마다 맵: 홀수 채널 = 눈밭, 짝수 채널 = 숲 (맵 밖에 눈나무)
-// 주소 끝에 ?ch=2 를 붙이면 그 채널로 시작 (혼자 하기 모드에서도 그 맵)
+// 채널마다 맵: 홀수 채널 = 숲 (지금 크기, 50명), 짝수 채널 = 큰 숲 (넓이 2배, 100명)
+// 두 맵 모두 맵 밖에 눈나무. 주소 끝에 ?ch=2 를 붙이면 그 채널로 시작 (혼자 하기 모드에서도 그 맵)
 // ─────────────────────────────────────────────
-const MAPS = { field: '눈밭', forest: '숲' };
-function mapOf(ch) { return ch % 2 === 0 ? 'forest' : 'field'; }
+const MAPS = {
+  small: { name: '숲', radius: 30, max: 50 },
+  big: { name: '큰 숲', radius: 30 * Math.SQRT2, max: 100 }, // 넓이 2배 = 반지름 √2배 (약 42.4)
+};
+function mapOf(ch) { return ch % 2 === 0 ? 'big' : 'small'; }
 const START_CH = Math.max(1, parseInt(new URLSearchParams(location.search).get('ch') || '1', 10) || 1);
-let currentMap = mapOf(START_CH);
-let trees = null;
+let currentMap = null;
+const treeSets = {}; // 맵마다 나무 한 벌 (처음 들어갈 때 만들고, 다른 맵에선 숨김)
 function applyMap(ch) {
-  currentMap = mapOf(ch);
-  if (currentMap === 'forest' && !trees) {
-    trees = addTrees(scene, gltfLoader, GLB_SCALE) // 숲 맵에 처음 들어갈 때만 불러옴
-      .then((g) => { g.visible = currentMap === 'forest'; return g; })
-      .catch((e) => { console.warn('나무 불러오기 실패', e); trees = null; });
+  const key = mapOf(ch);
+  if (key === currentMap) return;
+  currentMap = key;
+  const map = MAPS[key];
+  setWorldRadius(map.radius);
+  clampToWorld(player.position);
+  if (!treeSets[key]) {
+    treeSets[key] = addTrees(scene, gltfLoader, GLB_SCALE, map.radius)
+      .catch((e) => { console.warn('나무 불러오기 실패', e); delete treeSets[key]; return null; });
   }
-  trees?.then((g) => { if (g) g.visible = currentMap === 'forest'; });
+  for (const [k, p] of Object.entries(treeSets)) p.then((g) => { if (g) g.visible = k === currentMap; });
 }
-applyMap(START_CH);
 const textureLoader = new THREE.TextureLoader();
 // 주소 끝에 ?lite 를 붙이면 시험용 경량 모델로 불러옴 (HUD 버튼으로 전환)
 // 웹(GitHub Pages)에서는 원본 FBX를 올리지 않으므로 항상 경량 모델
@@ -866,6 +883,7 @@ const tmp = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 const lookAt = new THREE.Vector3();
+const tmpFocus = new THREE.Vector3();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 
@@ -1123,7 +1141,7 @@ function loop() {
   sendState();
   updateCamera(dt, time);
   updateEffects(dt, time);
-  setTreeFocus(lookAt); // 카메라가 보는 곳(내 떼리앙)을 가리는 나무는 뚫어 보이게
+  setTreeFocus(player.visible ? tmpFocus.copy(player.position).setY(0.65) : lookAt, camera, renderer); // 카메라가 보는 곳(내 떼리앙)을 가리는 나무는 뚫어 보이게
   renderer.render(scene, camera);
   // 만화 외곽선: 가까울수록 살짝 두껍게
   outline.setThickness(THREE.MathUtils.clamp(1.6 * Math.sqrt(CAM_DIST / camera.position.distanceTo(lookAt)), 1, 2.4));
@@ -1217,12 +1235,11 @@ function setNetStatus(text) {
 }
 function updateOnlineHud() {
   if (!net || !net.connected) { $('online').classList.add('hidden'); return; }
-  $('online').textContent = `채널 ${net.ch} · ${MAPS[mapOf(net.ch)]} · ${remotes.count + 1}명 ▾`;
+  $('online').textContent = `채널 ${net.ch} · ${MAPS[mapOf(net.ch)].name} · ${remotes.count + 1}명 ▾`;
   $('online').classList.remove('hidden');
 }
 
 // 채널 목록: 채널 표시를 누르면 열림. 눈밭(1)·숲(2)은 항상, 나머지는 사람이 있는 채널만
-const CHANNEL_MAX = 50;
 async function openChannels() {
   const panel = $('channelPanel'), list = $('channelList');
   panel.classList.remove('hidden');
@@ -1237,12 +1254,13 @@ async function openChannels() {
   list.innerHTML = '';
   for (const c of shown) {
     const me = net && c.ch === net.ch;
-    const full = c.players >= CHANNEL_MAX && !me;
+    const cmax = MAPS[mapOf(c.ch)].max;
+    const full = c.players >= cmax && !me;
     const b = document.createElement('button');
     b.className = 'ch-item' + (me ? ' me' : '');
     b.disabled = full;
-    b.innerHTML = `<span class="ch-no">채널 ${c.ch}</span><span class="ch-map">${MAPS[mapOf(c.ch)]}</span>` +
-      `<span class="ch-count">${me ? '지금 여기 · ' : ''}${full ? '꽉 참' : `${c.players}/${CHANNEL_MAX}명`}</span>`;
+    b.innerHTML = `<span class="ch-no">채널 ${c.ch}</span><span class="ch-map">${MAPS[mapOf(c.ch)].name}</span>` +
+      `<span class="ch-count">${me ? '지금 여기 · ' : ''}${full ? '꽉 참' : `${c.players}/${cmax}명`}</span>`;
     b.addEventListener('click', () => {
       panel.classList.add('hidden');
       if (me || !net) return;
@@ -1311,6 +1329,7 @@ function sendState() {
 // 시작
 // ─────────────────────────────────────────────
 async function init() {
+  applyMap(START_CH);
   pickSpawn();
   camera.position.set(state.spawn.x * 1.4, 8, state.spawn.z * 1.4);
   lookAt.copy(state.spawn);
