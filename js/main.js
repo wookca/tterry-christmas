@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { paintModel, labelParts } from './paint.js';
 import { OutlinePass, enableOutline } from './outline.js';
 import { animateBody } from './anim.js';
-import { Net, detectServer } from './net.js';
+import { Net, detectServer, fetchChannels } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
 import { Footprints, stepCheck } from './footprints.js';
@@ -245,7 +245,25 @@ function pickSpawn() {
 // ─────────────────────────────────────────────
 const fbxLoader = new FBXLoader();
 const gltfLoader = new GLTFLoader();
-addTrees(scene, gltfLoader, GLB_SCALE).catch((e) => console.warn('나무 불러오기 실패', e)); // 맵 밖 눈나무
+// ─────────────────────────────────────────────
+// 채널마다 맵: 홀수 채널 = 눈밭, 짝수 채널 = 숲 (맵 밖에 눈나무)
+// 주소 끝에 ?ch=2 를 붙이면 그 채널로 시작 (혼자 하기 모드에서도 그 맵)
+// ─────────────────────────────────────────────
+const MAPS = { field: '눈밭', forest: '숲' };
+function mapOf(ch) { return ch % 2 === 0 ? 'forest' : 'field'; }
+const START_CH = Math.max(1, parseInt(new URLSearchParams(location.search).get('ch') || '1', 10) || 1);
+let currentMap = mapOf(START_CH);
+let trees = null;
+function applyMap(ch) {
+  currentMap = mapOf(ch);
+  if (currentMap === 'forest' && !trees) {
+    trees = addTrees(scene, gltfLoader, GLB_SCALE) // 숲 맵에 처음 들어갈 때만 불러옴
+      .then((g) => { g.visible = currentMap === 'forest'; return g; })
+      .catch((e) => { console.warn('나무 불러오기 실패', e); trees = null; });
+  }
+  trees?.then((g) => { if (g) g.visible = currentMap === 'forest'; });
+}
+applyMap(START_CH);
 const textureLoader = new THREE.TextureLoader();
 // 주소 끝에 ?lite 를 붙이면 시험용 경량 모델로 불러옴 (HUD 버튼으로 전환)
 // 웹(GitHub Pages)에서는 원본 FBX를 올리지 않으므로 항상 경량 모델
@@ -1199,15 +1217,53 @@ function setNetStatus(text) {
 }
 function updateOnlineHud() {
   if (!net || !net.connected) { $('online').classList.add('hidden'); return; }
-  $('online').textContent = `채널 ${net.ch} · ${remotes.count + 1}명`;
+  $('online').textContent = `채널 ${net.ch} · ${MAPS[mapOf(net.ch)]} · ${remotes.count + 1}명 ▾`;
   $('online').classList.remove('hidden');
 }
+
+// 채널 목록: 채널 표시를 누르면 열림. 눈밭(1)·숲(2)은 항상, 나머지는 사람이 있는 채널만
+const CHANNEL_MAX = 50;
+async function openChannels() {
+  const panel = $('channelPanel'), list = $('channelList');
+  panel.classList.remove('hidden');
+  list.innerHTML = '<div class="ch-empty">불러오는 중…</div>';
+  let chans = null;
+  try { chans = await fetchChannels(); } catch {}
+  if (!chans) { list.innerHTML = '<div class="ch-empty">채널 목록을 불러오지 못했어요.</div>'; return; }
+  for (const n of [1, 2]) if (!chans.some((c) => c.ch === n)) chans.push({ ch: n, players: 0 }); // 서버는 빈 채널에서 목록을 끊으므로 1·2는 채워 넣음
+  if (net && !chans.some((c) => c.ch === net.ch)) chans.push({ ch: net.ch, players: remotes.count + 1 });
+  chans.sort((a, b) => a.ch - b.ch);
+  const shown = chans.filter((c) => c.ch <= 2 || c.players > 0 || (net && c.ch === net.ch));
+  list.innerHTML = '';
+  for (const c of shown) {
+    const me = net && c.ch === net.ch;
+    const full = c.players >= CHANNEL_MAX && !me;
+    const b = document.createElement('button');
+    b.className = 'ch-item' + (me ? ' me' : '');
+    b.disabled = full;
+    b.innerHTML = `<span class="ch-no">채널 ${c.ch}</span><span class="ch-map">${MAPS[mapOf(c.ch)]}</span>` +
+      `<span class="ch-count">${me ? '지금 여기 · ' : ''}${full ? '꽉 참' : `${c.players}/${CHANNEL_MAX}명`}</span>`;
+    b.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      if (me || !net) return;
+      remotes.clear();
+      applyMap(c.ch);
+      net.switchTo(c.ch);
+      updateOnlineHud();
+    });
+    list.appendChild(b);
+  }
+}
+$('online').addEventListener('click', openChannels);
+$('channelClose').addEventListener('click', () => $('channelPanel').classList.add('hidden'));
+$('channelPanel').addEventListener('click', (e) => { if (e.target === $('channelPanel')) $('channelPanel').classList.add('hidden'); });
 
 function connectOnline(ch) {
   if (net) return;
   net = new Net({
     onWelcome: (m) => {
       remotes.clear();
+      applyMap(net.ch); // 꽉 차서 다른 채널로 넘어갔을 수도 있으니 맵 다시 맞춤
       m.players.forEach((p) => remotes.add(p));
       if (m.name) { $('hudName').textContent = `${ch.name} · ${m.name}`; myLabel.textContent = m.name; }
       lastSent = null;
@@ -1224,10 +1280,11 @@ function connectOnline(ch) {
     onDisconnect: () => { remotes.clear(); updateOnlineHud(); },
     onStatus: setNetStatus,
   });
+  net.ch = START_CH;
   net.join(() => ({
     name: myName(), char: charCode(ch, state.variant),
     x: player.position.x, z: player.position.z, yaw: state.yaw,
-  }));
+  }), START_CH);
 }
 
 // 내 상태를 0.1초마다 (바뀌었을 때만, 아니면 2초마다) 보냄

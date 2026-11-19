@@ -53,11 +53,12 @@ export class Net {
       switch (m.t) {
         case 'welcome':
           this.id = m.id; this.retry = 0;
+          if (m.ch) this.ch = m.ch;
           this.h.onWelcome?.(m);
           this.h.onStatus?.(null);
           break;
         case 'full':
-          this.ch += 1; this.retry = 0;
+          this.ch += 2; this.retry = 0; // 같은 맵의 다음 채널로 (홀수 = 눈밭, 짝수 = 숲)
           break; // 서버가 곧 끊음 → onclose에서 다음 채널로
         case 'join': this.h.onJoin?.(m.p); break;
         case 'leave': this.h.onLeave?.(m.id); break;
@@ -79,6 +80,14 @@ export class Net {
     };
   }
 
+  // 다른 채널로 옮기기
+  switchTo(ch) {
+    const old = this.ws;
+    this.ws = null; this.id = null; this.ch = ch; this.retry = 0; this.closedByUs = false;
+    if (old) { try { old.close(1000, 'switch'); } catch {} }
+    this.open();
+  }
+
   send(obj) {
     if (this.connected) this.ws.send(JSON.stringify(obj));
   }
@@ -89,4 +98,14 @@ export class Net {
     this.ws = null;
     this.id = null;
   }
+}
+
+// 채널별 인원 [{ ch, players }]
+export async function fetchChannels() {
+  const base = serverUrl();
+  if (!base) return null;
+  const res = await fetch(`${base}/api/channels`, { cache: 'no-store' });
+  if (!res.ok) return null;
+  const j = await res.json();
+  return j.channels || null;
 }

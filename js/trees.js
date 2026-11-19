@@ -1,17 +1,18 @@
 import * as THREE from 'three';
-import { enableOutline, seeThrough, SEE_THROUGH_GLSL } from './outline.js';
+import { seeThrough, SEE_THROUGH_GLSL } from './outline.js';
 
 // ─────────────────────────────────────────────
 // 맵 밖 눈나무 (models/trees.glb 안의 Tree_A, Tree_B, Tree_C)
 // 같은 나무는 InstancedMesh로 한 번에 그림 → 나무가 몇십 그루여도 그리기 호출은 몇 번뿐
 // 자리는 정해진 씨앗(seed)으로 뽑아서 모든 사람 화면에 똑같은 숲이 보임
 // 카메라와 내 떼리앙 사이를 가리는 나무는 그 부분만 뚫려 보임
+// 나무에는 검은 외곽선을 넣지 않음 (2026-11-19 요청)
 // ─────────────────────────────────────────────
 const TREE_COUNT = 80;       // 나무 개수
-const RING_IN = 32.5;        // 맵 경계(30) 바로 밖부터
+const RING_IN = 33.5;        // 맵 경계(30) 바로 밖부터
 const RING_OUT = 62;         // 여기까지 (더 멀면 안개에 묻힘)
-const MIN_GAP = 2.8;         // 나무 사이 최소 간격
-const SCALE_MIN = 1.5, SCALE_MAX = 2.6; // 떼리앙과 같은 비율(1) 기준 크기 배율
+const MIN_GAP = 4.2;         // 나무 사이 최소 간격
+const SCALE_MIN = 2.25, SCALE_MAX = 3.9; // 떼리앙과 같은 비율(1) 기준 크기 배율 (2026-11-19 50% 키움)
 
 function rng(seed) { // 항상 같은 순서로 나오는 난수
   return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
@@ -26,7 +27,8 @@ export async function addTrees(scene, loader, unitScale) {
     node.traverse((o) => { if (o.isMesh) parts.push(o); });
     if (parts.length) kinds.push(parts);
   }
-  if (!kinds.length) return;
+  const group = new THREE.Group();
+  if (!kinds.length) return group;
 
   // 자리 뽑기: 안쪽(경계 가까이)일수록 촘촘하게
   const rand = rng(20261119);
@@ -42,7 +44,6 @@ export async function addTrees(scene, loader, unitScale) {
 
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   const pos = new THREE.Vector3(), scl = new THREE.Vector3();
-  let partId = 210; // 외곽선 부위 번호 (눈 덮인 잎 / 줄기를 다른 부위로 → 사이에 선)
   kinds.forEach((parts, k) => {
     const mine = spots.filter((p) => p.kind === k);
     if (!mine.length) return;
@@ -69,10 +70,11 @@ export async function addTrees(scene, loader, unitScale) {
       inst.computeBoundingSphere();
       inst.castShadow = false;   // 그림자는 떼리앙 주변만 계산하므로 맵 밖 나무는 끔 (가볍게)
       inst.receiveShadow = false;
-      enableOutline(inst, partId++);
-      scene.add(inst);
+      group.add(inst);
     }
   });
+  scene.add(group);
+  return group;
 }
 
 // 매 프레임: 뚫어 보일 기준(내 떼리앙 또는 카메라가 보는 곳)
