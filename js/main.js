@@ -38,16 +38,31 @@ const CHARACTERS = [
       { id: 'brown', name: '갈색', color: '#8c2418', map: 'models/yangnyeom_card_brown.png' },
     ] },
   { id: 'neo', name: '너떼링', ready: false },
-  { id: 'yangneo', name: '양너떼링', ready: false },
+  { id: 'yangneo', name: '양너떼링', file: 'models/yangneo.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'longchi', name: '롱치떼링', ready: false },
   { id: 'ppyeo', name: '뼈떼링', ready: false },
   { id: 'sof', name: '솦떼링', file: 'models/sof.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  { id: 'sun', name: '썬떼링', ready: false },
   { id: 'ji', name: '지떼링', ready: false },
   { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'chi', name: '치떼링', ready: false },
   { id: 'ko', name: '코떼링', file: 'models/ko.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  { id: 'cookie', name: '쿠키 토네떼링', ready: false },
+  // 토네이도 4종: 몸은 하나, 머리 위 토핑 그림만 바꿈 (카드를 누를 때마다 다음 맛으로)
+  { id: 'tornado', name: '초코떼링', file: 'models/tornado.glb', ready: true, outline: true, unitScale: GLB_SCALE,
+    variantMaterial: 'M_Topping',
+    variants: [
+      { id: 'choco', label: '초코떼링', map: 'models/tornado_topping_choco.png' },
+      { id: 'cookie', label: '쿠키떼링', map: 'models/tornado_topping_cookie.png' },
+      { id: 'mango', label: '망고떼링', map: 'models/tornado_topping_mango.png' },
+      { id: 'berry', label: '베리떼링', map: 'models/tornado_topping_berry.png' },
+    ] },
+  // 선데 3종: 몸은 하나, 소스 색만 바꿈
+  { id: 'sundae', name: '썬떼링', file: 'models/sundae.glb', ready: true, outline: true, unitScale: GLB_SCALE,
+    variantMaterial: 'M_Sauce',
+    variants: [
+      { id: 'plain', label: '썬떼링', linear: [0.22697, 0.77582, 0.99110] },
+      { id: 'berry', label: '썬베떼링', linear: [1.0, 0.05448, 0.05448] },
+      { id: 'choco', label: '썬초떼링', linear: [0.07619, 0.03689, 0.03689] },
+    ] },
   { id: 'ham', name: '햄떼링', ready: false },
   { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'wheel', name: '휠떼링', ready: false },
@@ -210,20 +225,26 @@ let USE_LITE = new URLSearchParams(location.search).has('lite') || !['localhost'
 const modelCache = new Map();
 
 // 버전(variant)이 있는 떼리앙: 모델은 한 번만 불러서 공유하고, 지정한 재질의 텍스처만 바꾼 복제본을 만든다
+// 버전마다 이름이 다른 떼리앙(토네이도·선데)은 버전 이름으로 부름
+function charName(ch, variantId) {
+  const v = ch.variants && ch.variants.find((x) => x.id === variantId);
+  return (v && v.label) || ch.name;
+}
+function allCharNames(ch) { return [ch.name, ...(ch.variants || []).map((v) => v.label).filter(Boolean)]; }
 function defaultVariant(ch) { return ch.variants ? ch.variants[0].id : null; }
 function loadCharacter(ch, variantId) {
   if (!ch.variants) return loadBaseCharacter(ch);
   const v = ch.variants.find((x) => x.id === variantId) || ch.variants[0];
   const key = `${ch.id}-${v.id}`;
   if (modelCache.has(key)) return modelCache.get(key);
-  const p = Promise.all([loadBaseCharacter(ch), textureLoader.loadAsync(encodeURI(v.map))]).then(([base, tex]) => {
-    tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const p = Promise.all([loadBaseCharacter(ch), v.map ? textureLoader.loadAsync(encodeURI(v.map)) : null]).then(([base, tex]) => {
+    if (tex) { tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; }
     const model = base.clone(true); // 지오메트리는 공유
     model.traverse((o) => {
       if (o.isMesh && o.material && o.material.name === ch.variantMaterial) {
         o.material = o.material.clone();
-        o.material.map = tex;
-        o.material.color.set(0xffffff);
+        if (tex) { o.material.map = tex; o.material.color.set(0xffffff); }
+        if (v.linear) o.material.color.setRGB(v.linear[0], v.linear[1], v.linear[2], THREE.LinearSRGBColorSpace);
       }
     });
     model.userData.clips = base.userData.clips;
@@ -334,7 +355,7 @@ function buildCards() {
     b.disabled = !ch.ready;
     b.innerHTML = `
       <div class="thumb" ${ch.thumb ? `style="background-image:url(${ch.thumb})"` : ''}>${ch.thumb ? '' : '?'}</div>
-      <div class="name">${ch.name}</div>`;
+      <div class="name">${charName(ch, defaultVariant(ch))}</div>`;
     // 버전이 있는 떼리앙(양념포떼링)은 이미 고른 상태에서 다시 누를 때마다 다음 색으로
     if (ch.ready) b.addEventListener('click', () => {
       if (ch.variants && state.selectedId === ch.id) {
@@ -354,10 +375,11 @@ function selectCard(id) {
   // 자동으로 만든 닉네임(형용사 + 떼리앙 이름)이면 떼리앙을 바꿀 때 이름도 같이 바꿈. 직접 쓴 이름은 그대로
   const input = $('nameInput');
   const auto = parseAutoName(input.value.trim());
-  if (auto && auto.ch.id !== ch.id) input.value = `${auto.word} ${ch.name}`;
   // 버전(양념포떼링 빨강/주황/초록/갈색)은 카드를 다시 누를 때마다 바뀜
-  if (!ch.variants) { state.variant = null; return; }
-  if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
+  if (!ch.variants) state.variant = null;
+  else if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
+  const name = charName(ch, state.variant);
+  if (auto && auto.name !== name) input.value = `${auto.word} ${name}`;
 }
 
 // 선택 카드 그림: 가이드 시트에서 잘라낸 일러스트 (img/cards)
@@ -370,6 +392,11 @@ async function pickVariant(ch, variantId) {
   // 카드 그림도 고른 색으로
   const card = document.querySelector(`.card[data-id="${ch.id}"] .thumb`);
   if (card) card.style.backgroundImage = `url(${cardImage(ch, variantId)})`;
+  const nameEl = document.querySelector(`.card[data-id="${ch.id}"] .name`);
+  if (nameEl) nameEl.textContent = charName(ch, variantId);
+  const input = $('nameInput');
+  const auto = parseAutoName(input.value.trim());
+  if (auto && auto.name !== charName(ch, variantId)) input.value = `${auto.word} ${charName(ch, variantId)}`;
   loadCharacter(ch, variantId).catch(console.error); // 미리 불러두기
 }
 
@@ -406,11 +433,11 @@ async function startGame() {
     player.visible = true;
   }
   spawnGlow.visible = false;
-  $('hudName').textContent = ch.liteFile ? `${ch.name} (${ch.loadedInfo})` : ch.name;
+  $('hudName').textContent = ch.liteFile ? `${ch.name} (${ch.loadedInfo})` : charName(ch, state.variant);
   $('liteBtn').classList.toggle('hidden', !ch.liteFile || state.online);
   myLabel.textContent = myName();
   if (state.online) {
-    $('hudName').textContent = `${ch.name} · ${myName()}`;
+    $('hudName').textContent = `${charName(ch, state.variant)} · ${myName()}`;
     connectOnline(ch);
   }
   $('liteBtn').textContent = USE_LITE ? '원본 모델로 보기' : '경량 모델로 보기';
@@ -976,8 +1003,8 @@ function parseAutoName(text) {
   for (const word of NAME_WORDS) {
     if (!text.startsWith(word + ' ')) continue;
     const rest = text.slice(word.length + 1);
-    const ch = CHARACTERS.find((c) => c.name === rest);
-    if (ch) return { word, ch };
+    const ch = CHARACTERS.find((c) => allCharNames(c).includes(rest));
+    if (ch) return { word, ch, name: rest };
   }
   return null;
 }
@@ -988,7 +1015,7 @@ function nextRandomName() {
   const current = $('nameInput').value.trim();
   for (let tries = 0; tries < 3; tries++) {
     if (!wordDeck.length) wordDeck = [...NAME_WORDS].sort(() => Math.random() - 0.5);
-    const name = `${wordDeck.pop()} ${ch.name}`;
+    const name = `${wordDeck.pop()} ${charName(ch, state.variant)}`;
     if (name !== current) return name;
   }
   return current;
@@ -1004,8 +1031,9 @@ function myName() {
   if (typed) { try { localStorage.setItem('snowName', typed); } catch {} return typed; }
   try { localStorage.removeItem('snowName'); } catch {}
   const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS[0];
-  if (!autoName || autoName.char !== ch.id) {
-    autoName = { char: ch.id, name: `${NAME_WORDS[Math.floor(Math.random() * NAME_WORDS.length)]} ${ch.name}` };
+  const key = `${ch.id}-${state.variant}`;
+  if (!autoName || autoName.char !== key) {
+    autoName = { char: key, name: `${NAME_WORDS[Math.floor(Math.random() * NAME_WORDS.length)]} ${charName(ch, state.variant)}` };
   }
   return autoName.name;
 }
