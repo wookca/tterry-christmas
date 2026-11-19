@@ -33,7 +33,7 @@ export function setSoundOn(v) {
 }
 
 // 발소리 파일들: 처음 소리를 켤 때 한 번 불러둠
-const STEP_FILES = Array.from({ length: 12 }, (_, i) => `sounds/snow_step_${String(i + 1).padStart(2, '0')}.mp3`);
+const STEP_FILES = Array.from({ length: 4 }, (_, i) => `sounds/snow_step_${String(i + 1).padStart(2, '0')}.mp3`);
 let steps = null;
 function loadSteps() {
   if (steps || !ctx) return;
@@ -72,7 +72,7 @@ export function playStep(volume = 1) {
   }
   const src = ctx.createBufferSource();
   src.buffer = steps[k];
-  const rate = 1.0 + Math.random() * 0.15;
+  const rate = 0.97 + Math.random() * 0.06; // 높낮이는 아주 살짝만
   src.playbackRate.value = rate;
   const g = ctx.createGain();
   const vol = 0.6 * volume;
