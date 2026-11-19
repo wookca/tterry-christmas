@@ -46,23 +46,47 @@ function loadSteps() {
   }
 }
 
-// 뽀드득: 여러 발소리 중 하나를, 높낮이를 살짝 바꿔서 재생. volume 0~1
+// 뽀드득: 여러 발소리 중 하나를, 높낮이를 살짝 바꿔서 재생. volume 0~1 (1 = 내 발소리)
+// 녹음은 천천히 걷는 소리라 한 발이 길어서, 게임 걸음 박자(약 0.2초)에 맞게 앞부분만 짧게 쓰고 끝을 빠르게 줄임.
+// 내 발소리는 새 발이 나오면 앞 발소리를 바로 줄여서 겹치지 않게 하고, 다른 사람 발소리는 동시에 3개까지만
+const PLAY_LEN = 0.22;   // 한 발에 쓰는 길이 (초)
+const FADE_LEN = 0.07;   // 끝에서 줄어드는 시간
 let lastStep = -1;
-let lastAt = 0;
+let myVoice = null;
+let otherVoices = 0;
 export function playStep(volume = 1) {
   if (!on || !ctx || ctx.state !== 'running' || volume <= 0.01) return;
   loadSteps();
   if (!steps.length) return;
-  if (volume >= 1 && ctx.currentTime - lastAt < 0.12) return; // 너무 촘촘하면 건너뜀
+  const mine = volume >= 1;
+  if (!mine && otherVoices >= 3) return;
   let k = Math.floor(Math.random() * steps.length);
   if (k === lastStep && steps.length > 1) k = (k + 1) % steps.length; // 같은 소리 연속 안 나게
   lastStep = k;
-  if (volume >= 1) lastAt = ctx.currentTime;
+  const t = ctx.currentTime;
+  if (mine && myVoice) { // 앞 발소리는 0.03초 만에 줄이고 멈춤
+    myVoice.g.gain.cancelScheduledValues(t);
+    myVoice.g.gain.setValueAtTime(myVoice.g.gain.value, t);
+    myVoice.g.gain.linearRampToValueAtTime(0, t + 0.03);
+    try { myVoice.src.stop(t + 0.035); } catch {}
+  }
   const src = ctx.createBufferSource();
   src.buffer = steps[k];
-  src.playbackRate.value = 0.93 + Math.random() * 0.14;
+  const rate = 1.0 + Math.random() * 0.15;
+  src.playbackRate.value = rate;
   const g = ctx.createGain();
-  g.gain.value = 0.6 * volume;
+  const vol = 0.6 * volume;
+  g.gain.setValueAtTime(vol, t);
+  g.gain.setValueAtTime(vol, t + PLAY_LEN - FADE_LEN);
+  g.gain.linearRampToValueAtTime(0, t + PLAY_LEN);
   src.connect(g).connect(master);
-  src.start();
+  src.start(t, 0, (PLAY_LEN + 0.02) * rate);
+  if (mine) {
+    const v = { src, g };
+    myVoice = v;
+    src.onended = () => { if (myVoice === v) myVoice = null; };
+  } else {
+    otherVoices++;
+    src.onended = () => { otherVoices--; };
+  }
 }
