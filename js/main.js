@@ -936,7 +936,7 @@ function updatePlayer(dt) {
   if (state.down) state.fallDir = state.down.dir;
   animateBody(body, state, dt, moving, state.gathering);
   const side = stepCheck(state);
-  if (side && state.playing) { footprints.add(player.position, state.yaw, side); playStep(1); } // 매 발 짧고 가볍게 (작은 강아지 발걸음 느낌)
+  if (side && state.playing) { footprints.add(player.position, state.yaw, side); playStep(1, player.position); } // 매 발 짧고 가볍게 (작은 강아지 발걸음 느낌)
 }
 
 // ─────────────────────────────────────────────
@@ -1082,7 +1082,7 @@ function loop() {
     if (!side) continue;
     footprints.add(r.root.position, r.yaw, side);
     const d = r.root.position.distanceTo(player.visible ? player.position : camera.position);
-    playStep(Math.max(0, 1 - d / 9) * 0.45);
+    playStep(Math.max(0, 1 - d / 9) * 0.45, r.root.position);
   }
   footprints.update(dt);
   updateMyLabel();
