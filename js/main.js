@@ -427,7 +427,10 @@ function showPreview() {
   loadCharacter(ch, state.variant).then((model) => {
     if (previewKey !== key || state.playing) return;
     preview.clear();
-    preview.add(model.clone(true)); // 지오메트리·텍스처는 공유
+    // 지오메트리·텍스처는 공유. 지금 몸(같은 모델)을 숨겨둔 상태면 복제본도 숨김으로 복사되니 다시 보이게
+    const copy = model.clone(true);
+    copy.visible = true;
+    preview.add(copy);
     previewPopT = 0;
   }).catch(console.error);
 }
