@@ -920,6 +920,7 @@ function updatePlayer(dt) {
 // 일어난 뒤 1초 동안은 맞아도 안 쓰러짐
 // ─────────────────────────────────────────────
 const HIT_RADIUS = 0.62, HIT_HEIGHT = CHAR_HEIGHT + 0.25; // 몸통 + 눈덩이 크기만큼 넉넉하게
+const MIN_DOWN_TIME = 500; // 맞고 쓰러진 뒤 일어날 수 없는 시간 (ms)
 const GETUP_TIME = 450, IMMUNE_TIME = 1000; // ms
 state.down = null;
 state.risingUntil = 0;
@@ -955,12 +956,13 @@ function tryKnockDown(dir) {
 function knockDown(dir) {
   endAction(true);
   state.target = null;
-  state.down = { dir };
+  state.down = { dir, until: performance.now() + MIN_DOWN_TIME }; // 최소 0.5초는 강제로 누워 있음
   state.dropT = 1;
 }
 // 누워 있을 때 조작하면 일어남. true를 돌려주면 그 입력은 일어나는 데만 씀
 function getUpIfDown() {
   if (!state.down) return false;
+  if (performance.now() < state.down.until) return true; // 아직 강제로 누워 있는 시간: 입력은 무시
   state.down = null;
   const now = performance.now();
   state.risingUntil = now + GETUP_TIME;
