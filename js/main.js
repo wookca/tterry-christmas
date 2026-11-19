@@ -410,6 +410,25 @@ function selectCard(id) {
   else if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
   const name = charName(ch, state.variant);
   if (auto && auto.name !== name) input.value = `${auto.word} ${name}`;
+  showPreview();
+}
+
+// 선택 화면 미리보기: 고른 떼리앙을 스폰 지점에 세워서 보여줌 (카드를 누를 때마다 바로 바뀜)
+const preview = new THREE.Group();
+scene.add(preview);
+let previewKey = '';
+let previewPopT = 9;
+function showPreview() {
+  const ch = CHARACTERS.find((c) => c.id === state.selectedId);
+  if (!ch || state.playing) return;
+  const key = `${ch.id}-${state.variant}`;
+  previewKey = key;
+  loadCharacter(ch, state.variant).then((model) => {
+    if (previewKey !== key || state.playing) return;
+    preview.clear();
+    preview.add(model.clone(true)); // 지오메트리·텍스처는 공유
+    previewPopT = 0;
+  }).catch(console.error);
 }
 
 // 선택 카드 그림: 가이드 시트에서 잘라낸 일러스트 (img/cards)
@@ -427,7 +446,7 @@ async function pickVariant(ch, variantId) {
   const input = $('nameInput');
   const auto = parseAutoName(input.value.trim());
   if (auto && auto.name !== charName(ch, variantId)) input.value = `${auto.word} ${charName(ch, variantId)}`;
-  loadCharacter(ch, variantId).catch(console.error); // 미리 불러두기
+  showPreview();
 }
 
 function openSelect() {
@@ -463,6 +482,8 @@ async function startGame() {
     player.visible = true;
   }
   spawnGlow.visible = false;
+  preview.clear(); previewKey = '';
+  camera.clearViewOffset();
   $('hudName').textContent = ch.liteFile ? `${ch.name} (${ch.loadedInfo})` : charName(ch, state.variant);
   $('liteBtn').classList.toggle('hidden', !ch.liteFile || state.online);
   myLabel.textContent = myName();
@@ -951,11 +972,27 @@ function updateCamera(dt, time) {
     camera.position.lerp(camPos, k);
     lookAt.lerp(tmp.copy(camTarget).setY(0.6), k);
   } else {
-    // 선택 화면: 스폰 지점 주변을 천천히 도는 미리보기
-    const a = state.camYaw + Math.sin(time * 0.15) * 0.5;
-    camPos.set(state.spawn.x + Math.sin(a) * 11, 6.5, state.spawn.z + Math.cos(a) * 11);
-    camera.position.lerp(camPos, 1 - Math.exp(-dt * 2));
-    lookAt.lerp(tmp.set(state.spawn.x * 0.8, 0, state.spawn.z * 0.8), 1 - Math.exp(-dt * 2));
+    // 선택 화면: 스폰 지점에 선 내 떼리앙을 정면에서 보여줌.
+    // 아래쪽 선택 창에 가리지 않게, 창 위에 남은 화면 가운데에 오도록 화면을 위로 밀어 그림
+    const W = window.innerWidth, H = window.innerHeight;
+    const panel = document.querySelector('.select-panel');
+    const top = panel ? Math.max(H * 0.22, panel.getBoundingClientRect().top - 8) : H;
+    const frac = Math.min(1, top / H);
+    camera.setViewOffset(W, H, 0, (H - top) / 2, W, H);
+    const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const dist = THREE.MathUtils.clamp(CHAR_HEIGHT / (2 * tanHalf * 0.62 * frac), 3, 14);
+    const a = state.camYaw;
+    preview.position.copy(state.spawn);
+    camPos.set(state.spawn.x + Math.sin(a) * dist, CHAR_HEIGHT * 0.55 + dist * 0.28, state.spawn.z + Math.cos(a) * dist);
+    const k = 1 - Math.exp(-dt * 4);
+    camera.position.lerp(camPos, k);
+    lookAt.lerp(tmp.set(state.spawn.x, CHAR_HEIGHT * 0.5, state.spawn.z), k);
+    // 살짝 옆을 보며 좌우로 천천히 돌고, 바뀔 때 폴짝
+    preview.rotation.y = a + 0.4 + Math.sin(time * 0.7) * 0.35;
+    previewPopT += dt;
+    const u = Math.min(1, previewPopT / 0.35);
+    preview.position.y = Math.sin(Math.PI * u) * 0.25;
+    preview.scale.setScalar(1 + Math.sin(Math.PI * u) * 0.06);
   }
   camera.lookAt(lookAt);
 
