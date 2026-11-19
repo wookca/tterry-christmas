@@ -92,8 +92,9 @@ scene.fog = new THREE.Fog(SKY, 35, 90);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0xc8d4e0, 1.9));
-const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+// 떼리앙 그늘진 쪽도 살짝 차가운 하늘빛이 돌게 (눈밭 느낌)
+scene.add(new THREE.HemisphereLight(0xe2f0ff, 0xc8d4e0, 1.9));
+const sun = new THREE.DirectionalLight(0xfffaf2, 2.0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -8; sun.shadow.camera.right = 8;
@@ -110,8 +111,18 @@ const ground = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 })
 );
 ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
 scene.add(ground);
+// 눈 위 그림자는 회색 대신 하늘색 (눈은 하늘빛을 많이 반사해서 그늘이 파랗게 보임)
+// 흰 바닥 바로 위에 그림자만 그리는 판을 깔아, 그림자 진 곳만 하늘색으로 물들임
+const SHADOW_COLOR = 0x6fa8e8;
+const shadowCatcher = new THREE.Mesh(
+  new THREE.CircleGeometry(WORLD_RADIUS, 96),
+  new THREE.ShadowMaterial({ color: SHADOW_COLOR, opacity: 0.42 })
+);
+shadowCatcher.rotation.x = -Math.PI / 2;
+shadowCatcher.position.y = 0.003;
+shadowCatcher.receiveShadow = true;
+scene.add(shadowCatcher);
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
 const outer = new THREE.Mesh(
