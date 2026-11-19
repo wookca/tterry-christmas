@@ -83,17 +83,17 @@ export function playStep(volume = 1, pos = null) {
   }
   const src = ctx.createBufferSource();
   src.buffer = steps[k];
-  // 높이: 땅에 따라 ±8%, 발마다 ±6%
-  const rate = 1.3 * (0.92 + gnd * 0.16) * (0.94 + Math.random() * 0.12);
+  // 높이: 땅에 따라 0~+8%, 발마다 ±4% (너무 낮게는 안 내려가게)
+  const rate = 1.3 * (0.98 + gnd * 0.08) * (0.97 + Math.random() * 0.08);
   src.playbackRate.value = rate;
   // 음색: 폭신한 곳은 고음을 더 깎아서 먹먹하게, 다져진 곳은 또렷하게
   const tone = ctx.createBiquadFilter();
   tone.type = 'lowpass';
-  tone.frequency.value = 3500 + gnd * 5500 + Math.random() * 1500;
+  tone.frequency.value = 5500 + gnd * 3500 + Math.random() * 1000;
   tone.Q.value = 0.5;
-  // 세기: 땅에 따라 60~110%, 발마다 65~115%, 가끔(15%) 살짝 디딘 듯 아주 작게
-  let vol = 0.42 * volume * (0.6 + gnd * 0.5) * (0.65 + Math.random() * 0.5);
-  if (Math.random() < 0.15) vol *= 0.35;
+  // 세기: 땅에 따라 80~110%, 발마다 80~115%, 가끔(15%) 살짝 디딘 듯 조금 작게 (너무 작아지진 않게)
+  let vol = 0.42 * volume * (0.8 + gnd * 0.3) * (0.8 + Math.random() * 0.35);
+  if (Math.random() < 0.15) vol *= 0.65;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0, ctx.currentTime);
   g.gain.setValueAtTime(vol, t);
