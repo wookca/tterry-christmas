@@ -15,7 +15,10 @@ export const THROW_RANGE = 16;       // 최대 사거리
 const CHUNK_LIFETIME = 3;            // 조각이 남아있는 시간(초)
 
 const ballGeo = new THREE.IcosahedronGeometry(BALL_RADIUS, 2);
-const chunkGeo = new THREE.IcosahedronGeometry(BALL_RADIUS * 0.65, 0);
+const CHUNK_R = BALL_RADIUS * 0.65;
+const chunkGeo = new THREE.IcosahedronGeometry(CHUNK_R, 0);
+// 조각이 바닥에 놓일 높이 (크기 1 기준): 반지름보다 조금 낮게 → 눈에 살짝 박힌 듯, 그림자와 딱 붙음
+const CHUNK_REST = CHUNK_R * 0.7;
 // 외곽선용 부위 번호 (눈덩이/조각도 만화 선이 그려지게)
 ballGeo.setAttribute('partId', new THREE.BufferAttribute(new Float32Array(ballGeo.attributes.position.count).fill(200), 1));
 chunkGeo.setAttribute('partId', new THREE.BufferAttribute(new Float32Array(chunkGeo.attributes.position.count).fill(201), 1));
@@ -89,8 +92,8 @@ export class SnowballSystem {
         c.mesh.position.addScaledVector(c.vel, dt);
         c.mesh.rotation.x += c.spin.x * dt;
         c.mesh.rotation.z += c.spin.z * dt;
-        if (c.mesh.position.y <= c.size * 0.4) {
-          c.mesh.position.y = c.size * 0.4;
+        if (c.mesh.position.y <= CHUNK_REST * c.size) {
+          c.mesh.position.y = CHUNK_REST * c.size;
           if (Math.abs(c.vel.y) < 1.2) c.rest = true;
           c.vel.y *= -0.25;
           c.vel.x *= 0.5; c.vel.z *= 0.5;
@@ -98,6 +101,7 @@ export class SnowballSystem {
       }
       const fade = THREE.MathUtils.clamp((CHUNK_LIFETIME - c.age) / 0.5, 0, 1);
       c.mesh.scale.setScalar(c.size * fade);
+      if (c.rest) c.mesh.position.y = CHUNK_REST * c.size * fade; // 작아지며 사라질 때도 바닥에 붙어 있게
       if (c.age >= CHUNK_LIFETIME) {
         this.scene.remove(c.mesh); // 공유 지오메트리/재질이라 dispose 필요 없음
         this.chunks.splice(i, 1);
@@ -138,7 +142,7 @@ export class SnowballSystem {
       mesh.castShadow = true; // 조각은 작아서 외곽선 없이
       const size = 0.7 + Math.random() * 0.6;
       mesh.scale.setScalar(size);
-      mesh.position.set(at.x, Math.max(at.y || 0, size * 0.4 + 0.05), at.z);
+      mesh.position.set(at.x, Math.max(at.y || 0, CHUNK_REST * size + 0.05), at.z);
       mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.8;
       const sp = 0.8 + Math.random() * 1.4;

@@ -8,6 +8,7 @@ import { Net, detectServer } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
 import { Footprints, stepCheck } from './footprints.js';
+import { Imprints, landedCheck } from './imprints.js';
 import { playStep, isSoundOn, setSoundOn } from './sound.js';
 
 // ─────────────────────────────────────────────
@@ -129,6 +130,7 @@ shadowCatcher.position.y = 0.003;
 shadowCatcher.receiveShadow = true;
 scene.add(shadowCatcher);
 const footprints = new Footprints(scene);
+const imprints = new Imprints(scene, renderer); // 넘어진 자리에 남는 떼리앙 모양 자국
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
 const outer = new THREE.Mesh(
@@ -935,6 +937,7 @@ function updatePlayer(dt) {
   state.fallTarget = state.down ? 1 : 0;
   if (state.down) state.fallDir = state.down.dir;
   animateBody(body, state, dt, moving, state.gathering);
+  if (landedCheck(state) && state.playing) imprints.add(player.position, state.yaw, state.fallDir, state.model);
   const side = stepCheck(state);
   if (side && state.playing) { footprints.add(player.position, state.yaw, side); playStep(1, player.position); } // 매 발 짧고 가볍게 (작은 강아지 발걸음 느낌)
 }
@@ -1078,6 +1081,7 @@ function loop() {
   remotes.update_frame(dt);
   // 다른 사람 발자국 (소리는 가까이 있을 때만 작게)
   for (const r of remotes.map.values()) {
+    if (landedCheck(r.anim)) imprints.add(r.root.position, r.yaw, r.anim.fallDir, r.model);
     const side = stepCheck(r.anim);
     if (!side) continue;
     footprints.add(r.root.position, r.yaw, side);
@@ -1085,6 +1089,7 @@ function loop() {
     playStep(Math.max(0, 1 - d / 9) * 0.45, r.root.position);
   }
   footprints.update(dt);
+  imprints.update(dt);
   updateMyLabel();
   sendState();
   updateCamera(dt, time);

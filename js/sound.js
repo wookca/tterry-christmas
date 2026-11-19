@@ -91,8 +91,8 @@ export function playStep(volume = 1, pos = null) {
   tone.type = 'lowpass';
   tone.frequency.value = 5500 + gnd * 3500 + Math.random() * 1000;
   tone.Q.value = 0.5;
-  // 세기: 땅에 따라 80~110%, 발마다 80~115%, 가끔(15%) 살짝 디딘 듯 조금 작게 (너무 작아지진 않게)
-  let vol = 0.42 * volume * (0.8 + gnd * 0.3) * (0.8 + Math.random() * 0.35);
+  // 세기 (2026-11-19 전체 절반으로): 땅에 따라 80~110%, 발마다 80~115%, 가끔(15%) 살짝 디딘 듯 조금 작게 (너무 작아지진 않게)
+  let vol = 0.21 * volume * (0.8 + gnd * 0.3) * (0.8 + Math.random() * 0.35);
   if (Math.random() < 0.15) vol *= 0.65;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0, ctx.currentTime);
