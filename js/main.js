@@ -49,6 +49,8 @@ const CHARACTERS = [
   // 토네이도 4종: 몸은 하나, 머리 위 토핑 그림만 바꿈 (카드를 누를 때마다 다음 맛으로)
   { id: 'tornado', name: '초코떼링', file: 'models/tornado.glb', ready: true, outline: true, unitScale: GLB_SCALE,
     variantMaterial: 'M_Topping',
+    // 눈(소용돌이)은 몸 위 무늬: 눈 둘레에 외곽선을 그리지 않아야 모델링한 굵기 그대로 보임
+    patternOn: { M_Face: 'M_Body' },
     variants: [
       { id: 'choco', label: '초코떼링', map: 'models/tornado_topping_choco.png' },
       { id: 'cookie', label: '쿠키떼링', map: 'models/tornado_topping_cookie.png' },
