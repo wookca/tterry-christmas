@@ -17,6 +17,7 @@ const MAX_CHANNELS = 20;  // 채널 수 상한
 // 채널마다 맵: 홀수 = 숲 (반지름 30, 50명), 짝수 = 큰 숲 (넓이 2배 = 반지름 30×√2, 100명). 게임 쪽 js/main.js MAPS와 같아야 함
 const maxFor = (ch) => (ch % 2 === 0 ? 100 : MAX_PLAYERS);
 const radiusFor = (ch) => (ch % 2 === 0 ? 30 * Math.SQRT2 : 30);
+const STALE_MS = 70000;   // 이만큼 아무 신호가 없으면 끊긴 것으로 봄 (게임은 5초마다 ping, 숨긴 탭은 1분에 한 번까지 느려질 수 있어 넉넉히)
 const MAX_MSG = 1024;     // 메시지 최대 크기(바이트)
 
 // 접속을 허용할 주소인지 확인 (다른 사이트에서 몰래 붙는 것 방지)
@@ -46,7 +47,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 3, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 4, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -97,13 +98,29 @@ export class Channel extends DurableObject {
     return this.players().length;
   }
 
+  // 지금 접속해 있는 사람. 70초 넘게 아무 신호가 없는 연결(폰 화면 꺼짐·창 강제 종료 등으로
+  // 끊김 알림이 안 온 "유령")은 여기서 정리 → 인원 수에 안 셈
   players() {
     const out = [];
+    const now = Date.now();
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment();
-      if (a && a.joined) out.push({ ws, p: a });
+      if (!a || !a.joined) continue;
+      if (now - (a.seen || 0) > STALE_MS) { this.drop(ws, a); continue; }
+      out.push({ ws, p: a });
     }
     return out;
+  }
+
+  drop(ws, a) {
+    a.joined = false;
+    try { ws.serializeAttachment(a); } catch { /* 닫힌 소켓 */ }
+    try { ws.close(4000, 'timeout'); } catch { /* 이미 닫힘 */ }
+    const s = JSON.stringify({ t: 'leave', id: a.id });
+    for (const o of this.ctx.getWebSockets()) {
+      if (o === ws) continue;
+      try { o.send(s); } catch { /* 끊긴 소켓 */ }
+    }
   }
 
   async fetch(request) {
@@ -141,6 +158,9 @@ export class Channel extends DurableObject {
     try { msg = JSON.parse(data); } catch { return; }
     const p = ws.deserializeAttachment();
     if (!p) return;
+    // 마지막 신호 시각 (3초에 한 번만 저장)
+    const now = Date.now();
+    if (!p.seen || now - p.seen > 3000) { p.seen = now; try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ } }
 
     switch (msg.t) {
       case 'hello': {

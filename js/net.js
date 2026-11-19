@@ -53,6 +53,9 @@ export class Net {
       switch (m.t) {
         case 'welcome':
           this.id = m.id; this.retry = 0;
+          // 살아 있다는 신호: 5초마다 (떼리앙 바꾸는 중처럼 움직임을 안 보낼 때도 연결이 유지되게)
+          clearInterval(this.pinger);
+          this.pinger = setInterval(() => { if (this.ws === ws && this.connected) ws.send('{"t":"ping"}'); }, 5000);
           if (m.ch) this.ch = m.ch;
           this.h.onWelcome?.(m);
           this.h.onStatus?.(null);
@@ -69,6 +72,7 @@ export class Net {
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
+      clearInterval(this.pinger);
       const wasIn = !!this.id;
       this.id = null;
       if (wasIn) this.h.onDisconnect?.();
@@ -93,6 +97,7 @@ export class Net {
   }
 
   close() {
+    clearInterval(this.pinger);
     this.closedByUs = true;
     if (this.ws) this.ws.close();
     this.ws = null;
