@@ -9,6 +9,7 @@ import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
 import { Footprints, stepCheck } from './footprints.js';
 import { Imprints, landedCheck } from './imprints.js';
+import { addTrees, setTreeFocus } from './trees.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 
 // ─────────────────────────────────────────────
@@ -244,6 +245,7 @@ function pickSpawn() {
 // ─────────────────────────────────────────────
 const fbxLoader = new FBXLoader();
 const gltfLoader = new GLTFLoader();
+addTrees(scene, gltfLoader, GLB_SCALE).catch((e) => console.warn('나무 불러오기 실패', e)); // 맵 밖 눈나무
 const textureLoader = new THREE.TextureLoader();
 // 주소 끝에 ?lite 를 붙이면 시험용 경량 모델로 불러옴 (HUD 버튼으로 전환)
 // 웹(GitHub Pages)에서는 원본 FBX를 올리지 않으므로 항상 경량 모델
@@ -1103,6 +1105,7 @@ function loop() {
   sendState();
   updateCamera(dt, time);
   updateEffects(dt, time);
+  setTreeFocus(lookAt); // 카메라가 보는 곳(내 떼리앙)을 가리는 나무는 뚫어 보이게
   renderer.render(scene, camera);
   // 만화 외곽선: 가까울수록 살짝 두껍게
   outline.setThickness(THREE.MathUtils.clamp(1.6 * Math.sqrt(CAM_DIST / camera.position.distanceTo(lookAt)), 1, 2.4));

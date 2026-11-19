@@ -15,23 +15,50 @@ import * as THREE from 'three';
 
 export const OUTLINE_LAYER = 1;
 const DEPTH_RANGE = 80; // 깊이 저장 범위(월드 단위)
+export const FADE_NEAR = 35, FADE_FAR = 90; // 안개와 같은 거리: 멀리 있는 선도 안개처럼 옅어짐
+
+// 맵 밖 나무처럼 여러 개를 한 번에 그리는 물체(InstancedMesh)가
+// 카메라와 내 떼리앙 사이를 가리면 그 부분만 뚫어서 보이게 함 (나무 재질과 외곽선 그리기에 같이 씀)
+export const seeThrough = { uFocus: { value: new THREE.Vector3() } };
+export const SEE_THROUGH_GLSL = /* glsl */`
+  bool seeThroughCut(vec3 wp, vec3 cam, vec3 focus) {
+    if (distance(wp, cam) < 3.0) return true;              // 카메라 바로 앞
+    vec3 seg = focus - cam;
+    float t = clamp(dot(wp - cam, seg) / max(dot(seg, seg), 1e-4), 0.0, 1.0);
+    vec3 cp = cam + seg * t;
+    return t < 0.96 && length((wp - cp).xz) < 2.2;          // 카메라 → 떼리앙 시선 위
+  }`;
 
 // 부위 번호 + 깊이를 기록하는 재질
 const idMaterial = new THREE.ShaderMaterial({
+  uniforms: { uFocus: seeThrough.uFocus },
   vertexShader: /* glsl */`
     attribute float partId;
     varying float vPart;
     varying float vDepth;
+    varying vec3 vWorld;
     void main() {
       vPart = partId;
-      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vec4 p = vec4(position, 1.0);
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p;
+      #endif
+      vec4 wp = modelMatrix * p;
+      vWorld = wp.xyz;
+      vec4 mv = viewMatrix * wp;
       vDepth = -mv.z;
       gl_Position = projectionMatrix * mv;
     }`,
   fragmentShader: /* glsl */`
+    uniform vec3 uFocus;
     varying float vPart;
     varying float vDepth;
+    varying vec3 vWorld;
+    ${SEE_THROUGH_GLSL}
     void main() {
+      #ifdef USE_INSTANCING
+        if (seeThroughCut(vWorld, cameraPosition, uFocus)) discard;
+      #endif
       float d = clamp(vDepth / ${DEPTH_RANGE.toFixed(1)}, 0.0, 0.9999);
       float hi = floor(d * 255.0) / 255.0;
       float lo = fract(d * 255.0);
@@ -72,13 +99,17 @@ const edgeMaterial = new THREE.ShaderMaterial({
     void main() {
       vec4 c = texture2D(tId, vUv);
       float e = 0.0;
+      float nearD = c.a > 0.5 ? depthOf(c) : 1e9;
       for (int i = 0; i < 8; i++) {
         float ang = float(i) * 0.785398;
         vec2 dir = vec2(cos(ang), sin(ang));
         e += edgeAt(c, dir * texel * thickness);
         e += edgeAt(c, dir * texel * thickness * 0.5);
+        vec4 n = texture2D(tId, vUv + dir * texel * thickness);
+        if (n.a > 0.5) nearD = min(nearD, depthOf(n));
       }
       float alpha = clamp(e / 3.0, 0.0, 1.0);
+      alpha *= 1.0 - smoothstep(${FADE_NEAR.toFixed(1)}, ${FADE_FAR.toFixed(1)}, nearD); // 멀수록 옅게 (안개처럼)
       if (alpha <= 0.0) discard;
       gl_FragColor = vec4(color, alpha);
     }`,
