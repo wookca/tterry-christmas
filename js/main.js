@@ -936,7 +936,7 @@ function updatePlayer(dt) {
   if (state.down) state.fallDir = state.down.dir;
   animateBody(body, state, dt, moving, state.gathering);
   const side = stepCheck(state);
-  if (side && state.playing) { footprints.add(player.position, state.yaw, side); playStep(1); }
+  if (side && state.playing) { footprints.add(player.position, state.yaw, side); if (side === 1) playStep(1); } // 소리는 두 발에 한 번 (걸음이 빨라서 매 발 내면 너무 촘촘)
 }
 
 // ─────────────────────────────────────────────
@@ -1082,7 +1082,7 @@ function loop() {
     if (!side) continue;
     footprints.add(r.root.position, r.yaw, side);
     const d = r.root.position.distanceTo(player.visible ? player.position : camera.position);
-    playStep(Math.max(0, 1 - d / 9) * 0.45);
+    if (side === 1) playStep(Math.max(0, 1 - d / 9) * 0.45);
   }
   footprints.update(dt);
   updateMyLabel();
