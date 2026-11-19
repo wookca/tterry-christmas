@@ -58,6 +58,8 @@ const CHARACTERS = [
   // 선데 3종: 몸은 하나, 소스 색만 바꿈
   { id: 'sundae', name: '썬떼링', file: 'models/sundae.glb', ready: true, outline: true, unitScale: GLB_SCALE,
     variantMaterial: 'M_Sauce',
+    // 소스는 크림 위 무늬: 크림과 소스 경계에는 선을 긋지 않음 (바깥 윤곽선은 그대로)
+    patternOn: { M_Sauce: 'M_Cream' },
     variants: [
       { id: 'plain', label: '썬떼링', linear: [0.22697, 0.77582, 0.99110] },
       { id: 'berry', label: '썬베떼링', linear: [1.0, 0.05448, 0.05448] },
@@ -261,6 +263,32 @@ function parseCharCode(code) {
   return { ch, variant };
 }
 
+// 무늬 부위(예: 선데 소스)를 바탕 부위(크림)와 같은 부위 번호로 → 그 경계엔 외곽선이 안 생김
+function mergePatternParts(meshes, patternOn) {
+  for (const [patName, baseName] of Object.entries(patternOn)) {
+    const base = meshes.find((m) => m.material.name === baseName);
+    if (!base) continue;
+    const bp = base.geometry.attributes.position.array, bid = base.geometry.attributes.partId.array;
+    for (const m of meshes.filter((x) => x.material.name === patName)) {
+      const pos = m.geometry.attributes.position.array, ids = m.geometry.attributes.partId.array;
+      const remap = new Map();
+      for (let i = 0; i < ids.length; i++) {
+        if (!remap.has(ids[i])) {
+          // 이 무늬 조각에서 가장 가까운 바탕 정점의 부위 번호를 씀
+          let best = Infinity, bestId = ids[i];
+          for (let j = 0; j < bid.length; j++) {
+            const dx = bp[j * 3] - pos[i * 3], dy = bp[j * 3 + 1] - pos[i * 3 + 1], dz = bp[j * 3 + 2] - pos[i * 3 + 2];
+            const d = dx * dx + dy * dy + dz * dz;
+            if (d < best) { best = d; bestId = bid[j]; }
+          }
+          remap.set(ids[i], bestId);
+        }
+        ids[i] = remap.get(ids[i]);
+      }
+      m.geometry.attributes.partId.needsUpdate = true;
+    }
+  }
+}
 function loadBaseCharacter(ch) {
   if (modelCache.has(ch.id)) return modelCache.get(ch.id);
   const p = new Promise((resolve, reject) => {
@@ -313,6 +341,8 @@ function loadBaseCharacter(ch) {
           metalness: 0,
         });
       });
+
+      if (ch.patternOn) mergePatternParts(meshes, ch.patternOn);
 
       // 크기 맞추고, 발바닥을 y=0, 가운데를 원점에
       wrap.updateMatrixWorld(true);
