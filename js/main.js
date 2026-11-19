@@ -49,8 +49,6 @@ const CHARACTERS = [
   // 토네이도 4종: 몸은 하나, 머리 위 토핑 그림만 바꿈 (카드를 누를 때마다 다음 맛으로)
   { id: 'tornado', name: '초코떼링', file: 'models/tornado.glb', ready: true, outline: true, unitScale: GLB_SCALE,
     variantMaterial: 'M_Topping',
-    // 눈(소용돌이)은 몸 위 무늬: 눈 둘레에 외곽선을 그리지 않아야 모델링한 굵기 그대로 보임
-    patternOn: { M_Face: 'M_Body' },
     variants: [
       { id: 'choco', label: '초코떼링', map: 'models/tornado_topping_choco.png' },
       { id: 'cookie', label: '쿠키떼링', map: 'models/tornado_topping_cookie.png' },
@@ -344,7 +342,8 @@ function loadBaseCharacter(ch) {
         });
       });
 
-      if (ch.patternOn) mergePatternParts(meshes, ch.patternOn);
+      // 눈·입(M_Face)은 몸 위 무늬로 보고 둘레에 외곽선을 안 그림 → 모델링한 굵기 그대로
+      if (isGltf) mergePatternParts(meshes, { M_Face: 'M_Body', ...(ch.patternOn || {}) });
 
       // 크기 맞추고, 발바닥을 y=0, 가운데를 원점에
       wrap.updateMatrixWorld(true);
@@ -409,7 +408,7 @@ function selectCard(id) {
   const auto = parseAutoName(input.value.trim());
   // 버전(양념포떼링 빨강/주황/초록/갈색)은 카드를 다시 누를 때마다 바뀜
   if (!ch.variants) state.variant = null;
-  else if (!ch.variants.some((v) => v.id === state.variant)) state.variant = defaultVariant(ch);
+  else state.variant = ch.lastVariant || defaultVariant(ch); // 이 떼리앙에서 마지막으로 본 버전 (카드 그림과 같게)
   const name = charName(ch, state.variant);
   if (auto && auto.name !== name) input.value = `${auto.word} ${name}`;
   showPreview();
@@ -444,6 +443,7 @@ function cardImage(ch, variantId) {
 
 async function pickVariant(ch, variantId) {
   state.variant = variantId;
+  ch.lastVariant = variantId;
   // 카드 그림도 고른 색으로
   const card = document.querySelector(`.card[data-id="${ch.id}"] .thumb`);
   if (card) card.style.backgroundImage = `url(${cardImage(ch, variantId)})`;
