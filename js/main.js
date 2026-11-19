@@ -418,6 +418,7 @@ const preview = new THREE.Group();
 scene.add(preview);
 let previewKey = '';
 let previewPopT = 9;
+let viewShift = 0;
 function showPreview() {
   const ch = CHARACTERS.find((c) => c.id === state.selectedId);
   if (!ch || state.playing) return;
@@ -455,6 +456,7 @@ function openSelect() {
   state.keys.clear();
   endAction(true);
   if (!player.visible) spawnGlow.visible = true;
+  showPreview();
   $('select').classList.remove('hidden');
   $('hud').classList.add('hidden');
   $('guide').classList.add('hidden');
@@ -483,7 +485,7 @@ async function startGame() {
   }
   spawnGlow.visible = false;
   preview.clear(); previewKey = '';
-  camera.clearViewOffset();
+  model.visible = true;
   $('hudName').textContent = ch.liteFile ? `${ch.name} (${ch.loadedInfo})` : charName(ch, state.variant);
   $('liteBtn').classList.toggle('hidden', !ch.liteFile || state.online);
   myLabel.textContent = myName();
@@ -964,7 +966,16 @@ function getUpIfDown() {
 
 function updateCamera(dt, time) {
   const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), state.camYaw);
-  if (state.playing || player.visible) {
+  // 선택 창이 열려 있으면 창 위 빈 화면 가운데에 떼리앙이 오도록 화면을 위로 밀어 그림 (부드럽게)
+  const W = window.innerWidth, H = window.innerHeight;
+  const panel = document.querySelector('.select-panel');
+  const selecting = !state.playing && panel && !$('select').classList.contains('hidden');
+  const top = selecting ? Math.max(H * 0.22, panel.getBoundingClientRect().top - 8) : H;
+  viewShift += ((H - top) / 2 - viewShift) * (1 - Math.exp(-dt * 6));
+  if (viewShift > 0.5) camera.setViewOffset(W, H, 0, viewShift, W, H);
+  else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+
+  if (state.playing) {
     camTarget.copy(player.position);
     camPos.set(0, Math.sin(state.camPitch), Math.cos(state.camPitch))
       .multiplyScalar(state.camDist).applyQuaternion(yawQ).add(camTarget);
@@ -972,21 +983,20 @@ function updateCamera(dt, time) {
     camera.position.lerp(camPos, k);
     lookAt.lerp(tmp.copy(camTarget).setY(0.6), k);
   } else {
-    // 선택 화면: 스폰 지점에 선 내 떼리앙을 정면에서 보여줌.
-    // 아래쪽 선택 창에 가리지 않게, 창 위에 남은 화면 가운데에 오도록 화면을 위로 밀어 그림
-    const W = window.innerWidth, H = window.innerHeight;
-    const panel = document.querySelector('.select-panel');
-    const top = panel ? Math.max(H * 0.22, panel.getBoundingClientRect().top - 8) : H;
+    // 선택 화면: 내 떼리앙(처음엔 스폰 지점, 플레이 중엔 지금 서 있는 곳)을 보여줌.
+    // 게임 중 변경이면 카메라가 내 떼리앙 쪽으로 다가가고, 내 떼리앙 자리에서 바로 바뀜
+    const anchor = player.visible ? player.position : state.spawn;
     const frac = Math.min(1, top / H);
-    camera.setViewOffset(W, H, 0, (H - top) / 2, W, H);
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const dist = THREE.MathUtils.clamp(CHAR_HEIGHT / (2 * tanHalf * 0.62 * frac), 3, 14);
+    const dist = THREE.MathUtils.clamp(CHAR_HEIGHT / (2 * tanHalf * 0.36 * frac), 4, 16);
     const a = state.camYaw;
-    preview.position.copy(state.spawn);
-    camPos.set(state.spawn.x + Math.sin(a) * dist, CHAR_HEIGHT * 0.55 + dist * 0.28, state.spawn.z + Math.cos(a) * dist);
+    preview.position.set(anchor.x, 0, anchor.z);
+    camPos.set(anchor.x + Math.sin(a) * dist, CHAR_HEIGHT * 0.5 + dist * 0.42, anchor.z + Math.cos(a) * dist);
     const k = 1 - Math.exp(-dt * 4);
     camera.position.lerp(camPos, k);
-    lookAt.lerp(tmp.set(state.spawn.x, CHAR_HEIGHT * 0.5, state.spawn.z), k);
+    lookAt.lerp(tmp.set(anchor.x, CHAR_HEIGHT * 0.5, anchor.z), k);
+    // 미리보기가 떠 있는 동안은 원래 몸은 숨김 (같은 자리에서 바뀌는 것처럼)
+    if (state.model) state.model.visible = preview.children.length === 0;
     // 살짝 옆을 보며 좌우로 천천히 돌고, 바뀔 때 폴짝
     preview.rotation.y = a + 0.4 + Math.sin(time * 0.7) * 0.35;
     previewPopT += dt;
