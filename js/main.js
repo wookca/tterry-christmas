@@ -1276,8 +1276,20 @@ $('online').addEventListener('click', openChannels);
 $('channelClose').addEventListener('click', () => $('channelPanel').classList.add('hidden'));
 $('channelPanel').addEventListener('click', (e) => { if (e.target === $('channelPanel')) $('channelPanel').classList.add('hidden'); });
 
+// 지금 내 떼리앙 코드 (예: tornado-mango). 접속·재접속 때마다 이 값을 보냄
+function myCharCode() {
+  const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS.find((c) => c.ready);
+  return charCode(ch, state.variant);
+}
+let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
-  if (net) return;
+  if (net) {
+    // 이미 접속 중에 떼리앙(또는 닉네임)을 바꿨으면 같은 채널에 다시 접속해서 새 모습으로 알림
+    // (서버는 접속할 때 받은 떼리앙만 기억하므로, 다시 접속해야 다른 사람 화면에도 바뀜)
+    const now = { char: myCharCode(), name: myName() };
+    if (sentProfile && (sentProfile.char !== now.char || sentProfile.name !== now.name)) net.switchTo(net.ch);
+    return;
+  }
   net = new Net({
     onWelcome: (m) => {
       remotes.clear();
@@ -1300,7 +1312,7 @@ function connectOnline(ch) {
   });
   net.ch = START_CH;
   net.join(() => ({
-    name: myName(), char: charCode(ch, state.variant),
+    ...(sentProfile = { name: myName(), char: myCharCode() }),
     x: player.position.x, z: player.position.z, yaw: state.yaw,
   }), START_CH);
 }
