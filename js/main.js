@@ -162,19 +162,38 @@ function setWorldRadius(r) {
   swap(edge, new THREE.RingGeometry(r - 0.12, r, 160));
 }
 
-// 내리는 눈
-const SNOW_COUNT = 900;
+// 내리는 눈: 카메라 주변 상자 안에서 떨어지고, 바닥에 닿으면 위로 다시 (개수만큼만 계속 돌려 씀)
+// 흰 바닥·하늘에 묻히지 않게 송이 가장자리를 살짝 푸른 회색으로 (눈 그림자 색 계열)
+const SNOW_COUNT = 2400;   // 송이 수 (예전 900)
+const SNOW_AREA = 44;      // 카메라 주변 가로·세로 범위
+const SNOW_TOP = 18;       // 떨어지기 시작하는 높이
 const snowGeo = new THREE.BufferGeometry();
 const snowPos = new Float32Array(SNOW_COUNT * 3);
 for (let i = 0; i < SNOW_COUNT; i++) {
-  snowPos[i * 3] = (Math.random() - 0.5) * 50;
-  snowPos[i * 3 + 1] = Math.random() * 20;
-  snowPos[i * 3 + 2] = (Math.random() - 0.5) * 50;
+  snowPos[i * 3] = (Math.random() - 0.5) * SNOW_AREA;
+  snowPos[i * 3 + 1] = Math.random() * SNOW_TOP;
+  snowPos[i * 3 + 2] = (Math.random() - 0.5) * SNOW_AREA;
 }
 snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+function snowflakeTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.38, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.6, 'rgba(175,195,225,0.55)'); // 가장자리: 옅은 푸른 그늘 → 흰 배경에서도 보임
+  grad.addColorStop(1, 'rgba(175,195,225,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({
-  color: 0xffffff, size: 0.09, transparent: true, opacity: 0.9, depthWrite: false,
+  map: snowflakeTexture(), size: 0.28, transparent: true, opacity: 0.95, depthWrite: false, alphaTest: 0.02,
 }));
+snow.frustumCulled = false;
 scene.add(snow);
 
 // 클릭 목적지 표시
@@ -1097,15 +1116,20 @@ function updateCamera(dt, time) {
 function updateEffects(dt, time) {
   // 눈 내리기 (카메라 주변에서 반복)
   const p = snowGeo.attributes.position.array;
-  const cx = camera.position.x, cz = camera.position.z;
+  // 카메라와 내 떼리앙 사이(화면에 보이는 곳)를 중심으로 내림
+  const cx = camera.position.x * 0.4 + lookAt.x * 0.6, cz = camera.position.z * 0.4 + lookAt.z * 0.6;
   for (let i = 0; i < SNOW_COUNT; i++) {
     const ix = i * 3;
     p[ix + 1] -= dt * (0.8 + (i % 7) * 0.12);
     p[ix] += Math.sin(time * 0.7 + i) * dt * 0.15;
+    // 카메라가 움직여도 늘 주변에 고르게: 범위를 벗어난 송이는 반대편으로 옮김
+    const hx = p[ix] - cx, hz = p[ix + 2] - cz;
+    if (hx > SNOW_AREA / 2) p[ix] -= SNOW_AREA; else if (hx < -SNOW_AREA / 2) p[ix] += SNOW_AREA;
+    if (hz > SNOW_AREA / 2) p[ix + 2] -= SNOW_AREA; else if (hz < -SNOW_AREA / 2) p[ix + 2] += SNOW_AREA;
     if (p[ix + 1] < 0) {
-      p[ix + 1] = 18 + Math.random() * 2;
-      p[ix] = cx + (Math.random() - 0.5) * 50;
-      p[ix + 2] = cz + (Math.random() - 0.5) * 50;
+      p[ix + 1] = SNOW_TOP + Math.random() * 2;
+      p[ix] = cx + (Math.random() - 0.5) * SNOW_AREA;
+      p[ix + 2] = cz + (Math.random() - 0.5) * SNOW_AREA;
     }
   }
   snowGeo.attributes.position.needsUpdate = true;
