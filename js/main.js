@@ -1328,6 +1328,21 @@ function sendState() {
 // ─────────────────────────────────────────────
 // 시작
 // ─────────────────────────────────────────────
+// 모든 떼리앙의 모든 버전 모델·텍스처와 카드 그림을 처음에 한 번에 불러옴 (다 합쳐 약 3MB)
+const preloadedImages = [];
+function preloadAll() {
+  for (const ch of CHARACTERS.filter((c) => c.ready)) {
+    const ids = ch.variants ? ch.variants.map((v) => v.id) : [undefined];
+    for (const id of ids) {
+      loadCharacter(ch, id).catch((e) => console.warn('미리 불러오기 실패', ch.id, id, e));
+      const img = new Image();
+      img.src = cardImage(ch, id);
+      img.decode?.().catch(() => {});
+      preloadedImages.push(img); // 참조를 들고 있어야 브라우저가 버리지 않음
+    }
+  }
+}
+
 async function init() {
   applyMap(START_CH);
   pickSpawn();
@@ -1347,6 +1362,7 @@ async function init() {
   }
 
   const first = CHARACTERS.find((c) => c.ready);
+  preloadAll(); // 버전(변형) 텍스처·카드 그림까지 미리 다 불러 둠 → 카드를 여러 번 눌러도 바로 바뀜
   try {
     await Promise.all(CHARACTERS.filter((c) => c.ready).map(async (c) => {
       await loadCharacter(c, defaultVariant(c));
