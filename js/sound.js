@@ -75,7 +75,7 @@ export function playStep(volume = 1) {
   const rate = 0.97 + Math.random() * 0.06; // 높낮이는 아주 살짝만
   src.playbackRate.value = rate;
   const g = ctx.createGain();
-  const vol = 0.6 * volume;
+  const vol = 0.5 * volume; // 발소리는 장식: 은은하게
   g.gain.setValueAtTime(vol, t);
   g.gain.setValueAtTime(vol, t + PLAY_LEN - FADE_LEN);
   g.gain.linearRampToValueAtTime(0, t + PLAY_LEN);
