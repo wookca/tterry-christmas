@@ -47,10 +47,10 @@ function loadSteps() {
 }
 
 // 뽀드득: 여러 발소리 중 하나를, 높낮이를 살짝 바꿔서 재생. volume 0~1 (1 = 내 발소리)
-// 녹음은 천천히 걷는 소리라 한 발이 길어서, 게임 걸음 박자(두 발에 약 0.4초)에 맞게 앞부분만 짧게 쓰고 끝을 빠르게 줄임.
+// 녹음은 천천히 걷는 소리라 한 발이 길어서, 게임 걸음 박자(한 발 약 0.2초)에 맞게 앞부분만 짧게 쓰고 끝을 빠르게 줄임.
 // 내 발소리는 새 발이 나오면 앞 발소리를 바로 줄여서 겹치지 않게 하고, 다른 사람 발소리는 동시에 3개까지만
-const PLAY_LEN = 0.3;    // 한 번에 쓰는 길이 (초). 소리는 두 발(약 0.4초)에 한 번
-const FADE_LEN = 0.08;   // 끝에서 줄어드는 시간
+const PLAY_LEN = 0.13;   // 한 발에 쓰는 길이 (초). 매 발(약 0.2초마다) 짧게 → 가벼운 발걸음
+const FADE_LEN = 0.05;   // 끝에서 줄어드는 시간
 let lastStep = -1;
 let myVoice = null;
 let otherVoices = 0;
@@ -72,10 +72,10 @@ export function playStep(volume = 1) {
   }
   const src = ctx.createBufferSource();
   src.buffer = steps[k];
-  const rate = 1.0 + Math.random() * 0.07; // 높낮이는 아주 살짝만 (살짝 높은 쪽으로)
+  const rate = 1.25 + Math.random() * 0.1; // 음을 올려서 가볍게 (작은 발), 매번 살짝 다르게
   src.playbackRate.value = rate;
   const g = ctx.createGain();
-  const vol = 0.5 * volume * (0.7 + Math.random() * 0.45); // 발소리는 장식: 은은하게. 발마다 세기를 조금씩 다르게
+  const vol = 0.42 * volume * (0.7 + Math.random() * 0.45); // 발소리는 장식: 은은하게. 발마다 세기를 조금씩 다르게
   g.gain.setValueAtTime(vol, t);
   g.gain.setValueAtTime(vol, t + PLAY_LEN - FADE_LEN);
   g.gain.linearRampToValueAtTime(0, t + PLAY_LEN);
