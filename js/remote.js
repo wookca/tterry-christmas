@@ -51,8 +51,10 @@ export class RemotePlayers {
     this.map.set(p.id, r);
     this.getModel(p.char).then((model) => {
       if (!this.map.has(p.id)) return;
-      body.add(model.clone(true)); // 지오메트리/재질은 공유 → 메모리 절약
-    });
+      const copy = model.clone(true); // 지오메트리/재질은 공유 → 메모리 절약
+      copy.visible = true; // 원본이 잠깐 숨겨진 상태여도 항상 보이게
+      body.add(copy);
+    }).catch((err) => console.error('다른 플레이어 떼리앙 표시 실패', p.char, err));
   }
 
   update(m) {

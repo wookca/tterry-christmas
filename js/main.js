@@ -489,6 +489,7 @@ async function startGame() {
   spawnGlow.visible = false;
   preview.clear(); previewKey = '';
   model.visible = true;
+  body.visible = true;
   $('hudName').textContent = ch.liteFile ? `${ch.name} (${ch.loadedInfo})` : charName(ch, state.variant);
   $('liteBtn').classList.toggle('hidden', !ch.liteFile || state.online);
   myLabel.textContent = myName();
@@ -999,7 +1000,8 @@ function updateCamera(dt, time) {
     camera.position.lerp(camPos, k);
     lookAt.lerp(tmp.set(anchor.x, CHAR_HEIGHT * 0.5, anchor.z), k);
     // 미리보기가 떠 있는 동안은 원래 몸은 숨김 (같은 자리에서 바뀌는 것처럼)
-    if (state.model) state.model.visible = preview.children.length === 0;
+    // (불러둔 모델은 다른 플레이어 표시에도 복제해 쓰니 모델 자체는 건드리지 않고, 내 몸 그룹만 숨김)
+    body.visible = preview.children.length === 0;
     // 살짝 옆을 보며 좌우로 천천히 돌고, 바뀔 때 폴짝
     preview.rotation.y = a + 0.4 + Math.sin(time * 0.7) * 0.35;
     previewPopT += dt;
@@ -1071,7 +1073,12 @@ window.addEventListener('resize', () => {
 let net = null;
 const remotes = new RemotePlayers(scene, camera, (code) => {
   const { ch, variant } = parseCharCode(code);
-  return loadCharacter(ch, variant);
+  // 못 불러오면 기본 떼리앙으로라도 보이게
+  return loadCharacter(ch, variant).catch((err) => {
+    console.warn('다른 플레이어 떼리앙을 못 불러와서 기본 떼리앙으로 보여줌', code, err);
+    const first = CHARACTERS.find((c) => c.ready);
+    return loadCharacter(first, defaultVariant(first));
+  });
 }, $('labels'));
 
 // 닉네임을 비워두면 "형용사 + 캐릭터 이름" (예: 바삭한 포떼링). 형용사는 4글자 이하 (서버 12자 제한)
