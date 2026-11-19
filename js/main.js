@@ -9,7 +9,7 @@ import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
 import { Footprints, stepCheck } from './footprints.js';
 import { Imprints, landedCheck } from './imprints.js';
-import { playStep, isSoundOn, setSoundOn } from './sound.js';
+import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -225,6 +225,11 @@ body.add(handBall);
 enableOutline(handBall, 200);
 
 const snowballs = new SnowballSystem(scene);
+// 눈덩이가 깨지는 소리: 가까울수록 크게 (내 떼리앙 또는 카메라 기준 12m까지 들림)
+snowballs.onBurst = (at) => {
+  const d = Math.hypot(at.x - (player.visible ? player.position.x : camera.position.x), at.z - (player.visible ? player.position.z : camera.position.z));
+  playShatter(Math.max(0, 1 - d / 12));
+};
 
 function pickSpawn() {
   const a = Math.random() * Math.PI * 2;
@@ -683,6 +688,7 @@ function endAction(cancelled) {
 }
 
 function cancelGather() {
+  state.packTimer = 0;
   state.wantGather = false;
   state.gathering = false;
   state.gather = 0;
@@ -873,7 +879,10 @@ function updateSnowAction(dt) {
     }
     if (state.gathering && still) {
       state.gather = Math.min(1, state.gather + dt / GATHER_TIME);
-      if (state.gather >= 1) finishGather();
+      // 꾹꾹 뭉치는 소리: 약 0.25초마다 (박자를 조금씩 흔듦)
+      state.packTimer = (state.packTimer ?? 0) - dt;
+      if (state.packTimer <= 0 && state.gather < 0.9) { playPack(); state.packTimer = 0.22 + Math.random() * 0.1; }
+      if (state.gather >= 1) { finishGather(); playPackDone(); }
     }
     state.gatherPaused = !still;
   }

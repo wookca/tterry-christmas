@@ -135,6 +135,7 @@ export class SnowballSystem {
 
   // 퍼석! 3~5조각으로 부서짐
   burst(at, incoming) {
+    this.onBurst?.(at); // 깨지는 소리 등
     const n = 3 + Math.floor(Math.random() * 3);
     const dir = new THREE.Vector3(incoming.x, 0, incoming.z).normalize();
     for (let i = 0; i < n; i++) {

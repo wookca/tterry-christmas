@@ -91,8 +91,8 @@ export function playStep(volume = 1, pos = null) {
   tone.type = 'lowpass';
   tone.frequency.value = 5500 + gnd * 3500 + Math.random() * 1000;
   tone.Q.value = 0.5;
-  // 세기 (2026-11-19 전체 절반으로): 땅에 따라 80~110%, 발마다 80~115%, 가끔(15%) 살짝 디딘 듯 조금 작게 (너무 작아지진 않게)
-  let vol = 0.21 * volume * (0.8 + gnd * 0.3) * (0.8 + Math.random() * 0.35);
+  // 세기 (2026-11-19 처음의 약 35%로 줄임): 땅에 따라 80~110%, 발마다 80~115%, 가끔(15%) 살짝 디딘 듯 조금 작게 (너무 작아지진 않게)
+  let vol = 0.15 * volume * (0.8 + gnd * 0.3) * (0.8 + Math.random() * 0.35);
   if (Math.random() < 0.15) vol *= 0.65;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0, ctx.currentTime);
@@ -110,4 +110,54 @@ export function playStep(volume = 1, pos = null) {
     otherVoices++;
     src.onended = () => { otherVoices--; };
   }
+}
+
+// ─────────────────────────────────────────────
+// 눈 뭉치기·눈덩이 깨지기: 발소리와 같은 녹음을 써서 같은 눈 느낌이 나게 (전자음 X)
+// ─────────────────────────────────────────────
+function crunch({ rate, vol, len, cutoff, delay = 0, fade = 0.04 }) {
+  const k = Math.floor(Math.random() * steps.length);
+  const t = ctx.currentTime + delay;
+  const src = ctx.createBufferSource();
+  src.buffer = steps[k];
+  src.playbackRate.value = rate;
+  const tone = ctx.createBiquadFilter();
+  tone.type = 'lowpass';
+  tone.frequency.value = cutoff;
+  tone.Q.value = 0.5;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, ctx.currentTime);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.setValueAtTime(vol, t + len - fade);
+  g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(tone).connect(g).connect(master);
+  src.start(t, Math.random() * 0.02, (len + 0.02) * rate);
+}
+function ready() {
+  if (!on || !ctx || ctx.state !== 'running') return false;
+  loadSteps();
+  return steps.length > 0;
+}
+
+// 눈 뭉치기: 손으로 꾹꾹 누르는 소리 (모으는 동안 여러 번). 손 안이라 고음을 깎아 먹먹하고 작게
+export function playPack() {
+  if (!ready()) return;
+  crunch({ rate: 1.6 + Math.random() * 0.3, vol: 0.14 * (0.75 + Math.random() * 0.5), len: 0.1, cutoff: 3800 + Math.random() * 1200 });
+}
+// 다 뭉쳤을 때: 조금 더 단단하게 한 번 꾹
+export function playPackDone() {
+  if (!ready()) return;
+  crunch({ rate: 1.15, vol: 0.2, len: 0.12, cutoff: 5000 });
+  crunch({ rate: 1.7, vol: 0.1, len: 0.08, cutoff: 6000, delay: 0.015 });
+}
+
+// 눈덩이가 깨질 때: 낮은 퍽 + 높은 사각, 두 소리를 겹쳐 짧게. volume 0~1 (거리에 따라 줄임)
+let shatterVoices = 0;
+export function playShatter(volume = 1) {
+  if (!ready() || volume <= 0.02 || shatterVoices >= 4) return;
+  shatterVoices++;
+  setTimeout(() => { shatterVoices--; }, 250);
+  const v = 0.32 * volume * (0.85 + Math.random() * 0.3);
+  crunch({ rate: 0.85 + Math.random() * 0.1, vol: v, len: 0.2, cutoff: 6500, fade: 0.1 });
+  crunch({ rate: 1.45 + Math.random() * 0.2, vol: v * 0.6, len: 0.12, cutoff: 9000, delay: 0.012, fade: 0.06 });
 }
