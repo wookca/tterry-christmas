@@ -116,10 +116,10 @@ ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 // 눈 위 그림자: 보통 그림자(검정 000000을 살짝 얹은 회색)에서 파랑(B)만 올린 색.
 // 흰 바닥 바로 위에 그림자만 그리는 판을 깔아, 그림자 진 곳만 물들임. 결과 ≈ 회색 그림자 + 파랑
-const SHADOW_COLOR = 0x0048b8; // 그림자 색: 검정에서 파랑을 올림 (초록을 조금 같이 올려 보라가 아닌 하늘색)
+const SHADOW_COLOR = 0x0060ff; // 그림자 색: 검정에서 파랑을 올림 (초록을 조금 같이 올려 보라가 아닌 하늘색)
 const shadowCatcher = new THREE.Mesh(
   new THREE.CircleGeometry(WORLD_RADIUS, 96),
-  new THREE.ShadowMaterial({ color: SHADOW_COLOR, opacity: 0.24 })
+  new THREE.ShadowMaterial({ color: SHADOW_COLOR, opacity: 0.17 })
 );
 shadowCatcher.rotation.x = -Math.PI / 2;
 shadowCatcher.position.y = 0.003;
