@@ -28,7 +28,8 @@ const CAM_PITCH = 0.62, CAM_PITCH_MIN = 0.12, CAM_PITCH_MAX = 1.35; // 내려다
 // variants: 모델은 하나만 쓰고 재질 하나(material)의 텍스처만 바꿔 끼우는 버전들
 const GLB_SCALE = CHAR_HEIGHT / 124.04;
 const CHARACTERS = [
-  { id: 'potteling', name: '포떼링', file: 'models/potteling.glb', ready: true, outline: true, unitScale: GLB_SCALE },
+  { id: 'potteling', name: '포떼링', file: 'models/potteling.glb', ready: true, outline: true, unitScale: GLB_SCALE,
+    patternOn: { M_Ketchup: 'M_Fries' } }, // 케첩은 감자튀김 위 무늬: 경계선 없이 빨간색만
   { id: 'yangnyeom', name: '양념포떼링', file: 'models/yangnyeom.glb', ready: true, outline: true, unitScale: GLB_SCALE,
     variantMaterial: 'M_Card',
     variants: [
