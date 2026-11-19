@@ -1,10 +1,11 @@
+import { makeSnowStep } from './snowstep.js';
+
 // ─────────────────────────────────────────────
-// 소리: 눈 밟는 "소복" 소리를 그때그때 만들어 냄 (소리 파일 없음 → 저작권 걱정 없음)
+// 소리: 눈 밟는 "뽀드득" 소리를 그때그때 만들어 냄 (소리 파일 없음 → 저작권 걱정 없음)
 // 브라우저는 처음 터치/클릭 전엔 소리를 막으니, 첫 입력 때 켬
 // ─────────────────────────────────────────────
 let ctx = null;
 let master = null;
-let noise = null;
 let on = true;
 try { on = localStorage.getItem('soundOn') !== '0'; } catch {}
 
@@ -16,10 +17,6 @@ function ensure() {
   master = ctx.createGain();
   master.gain.value = on ? 1 : 0;
   master.connect(ctx.destination);
-  // 0.5초짜리 흰 잡음을 한 번 만들어 두고 매번 일부만 꺼내 씀
-  noise = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
-  const d = noise.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   return ctx;
 }
 function unlock() {
@@ -36,29 +33,28 @@ export function setSoundOn(v) {
   if (master) master.gain.setTargetAtTime(v ? 1 : 0, ctx.currentTime, 0.02);
 }
 
-// 소복: 낮게 눌리는 소리 + 사각거리는 알갱이 몇 개. volume 0~1
+// 뽀드득: 미리 만들어 둔 여러 가지 중 하나를, 높낮이를 살짝 바꿔서 재생. volume 0~1
+let steps = null;
+let lastStep = -1;
 export function playStep(volume = 1) {
   if (!on || !ctx || ctx.state !== 'running' || volume <= 0.01) return;
-  const t = ctx.currentTime;
-  const v = 0.35 * volume;
-  // 1) 푹 눌리는 낮은 소리
-  hit(t, 0.11, 520 + Math.random() * 180, 1.2, v * 0.9, 'lowpass');
-  // 2) 사각사각 알갱이
-  const grains = 3 + Math.floor(Math.random() * 3);
-  for (let g = 0; g < grains; g++) {
-    hit(t + 0.01 + Math.random() * 0.07, 0.025 + Math.random() * 0.03,
-      1800 + Math.random() * 2600, 2.5, v * (0.25 + Math.random() * 0.3), 'bandpass');
+  if (!steps) {
+    steps = [];
+    for (let i = 0; i < 8; i++) {
+      const data = makeSnowStep(ctx.sampleRate, i + 1);
+      const buf = ctx.createBuffer(1, data.length, ctx.sampleRate);
+      buf.copyToChannel(data, 0);
+      steps.push(buf);
+    }
   }
-}
-function hit(when, dur, freq, q, gain, type) {
+  let k = Math.floor(Math.random() * steps.length);
+  if (k === lastStep) k = (k + 1) % steps.length; // 같은 소리 연속 안 나게
+  lastStep = k;
   const src = ctx.createBufferSource();
-  src.buffer = noise;
-  const f = ctx.createBiquadFilter();
-  f.type = type; f.frequency.value = freq; f.Q.value = q;
+  src.buffer = steps[k];
+  src.playbackRate.value = 0.9 + Math.random() * 0.2;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, when);
-  g.gain.exponentialRampToValueAtTime(gain, when + Math.min(0.012, dur * 0.3));
-  g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-  src.connect(f).connect(g).connect(master);
-  src.start(when, Math.random() * 0.4, dur + 0.02);
+  g.gain.value = 0.55 * volume;
+  src.connect(g).connect(master);
+  src.start();
 }
