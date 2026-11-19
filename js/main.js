@@ -92,9 +92,11 @@ scene.fog = new THREE.Fog(SKY, 35, 90);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
 
-// 떼리앙 그늘진 쪽도 살짝 차가운 하늘빛이 돌게 (눈밭 느낌)
-scene.add(new THREE.HemisphereLight(0xe2f0ff, 0xc8d4e0, 1.9));
-const sun = new THREE.DirectionalLight(0xfffaf2, 2.0);
+// 떼리앙 그늘진 쪽: 그늘을 더 어둡게 하지 않고, 그늘 색의 파랑(B)만 올림.
+// 그늘엔 이 하늘 조명만 닿음 → 빨강·초록은 예전 그대로(세기를 맞춰서), 파랑만 더 (바닥 그림자 파랑의 절반 남짓)
+const SKY_TINT = new THREE.Color(0.80, 0.87, 1.0); // 초록을 조금 같이 올려야 보라가 아닌 하늘색
+scene.add(new THREE.HemisphereLight(SKY_TINT, 0xc8d4e0, 1.9 / 0.80));
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -8; sun.shadow.camera.right = 8;
@@ -112,12 +114,12 @@ const ground = new THREE.Mesh(
 );
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
-// 눈 위 그림자는 회색 대신 하늘색 (눈은 하늘빛을 많이 반사해서 그늘이 파랗게 보임)
-// 흰 바닥 바로 위에 그림자만 그리는 판을 깔아, 그림자 진 곳만 하늘색으로 물들임
-const SHADOW_COLOR = 0x6fa8e8;
+// 눈 위 그림자: 보통 그림자(검정 000000을 살짝 얹은 회색)에서 파랑(B)만 올린 색.
+// 흰 바닥 바로 위에 그림자만 그리는 판을 깔아, 그림자 진 곳만 물들임. 결과 ≈ 회색 그림자 + 파랑
+const SHADOW_COLOR = 0x0048b8; // 그림자 색: 검정에서 파랑을 올림 (초록을 조금 같이 올려 보라가 아닌 하늘색)
 const shadowCatcher = new THREE.Mesh(
   new THREE.CircleGeometry(WORLD_RADIUS, 96),
-  new THREE.ShadowMaterial({ color: SHADOW_COLOR, opacity: 0.42 })
+  new THREE.ShadowMaterial({ color: SHADOW_COLOR, opacity: 0.24 })
 );
 shadowCatcher.rotation.x = -Math.PI / 2;
 shadowCatcher.position.y = 0.003;
