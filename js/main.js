@@ -7,6 +7,8 @@ import { animateBody } from './anim.js';
 import { Net, detectServer } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
+import { Footprints, stepCheck } from './footprints.js';
+import { playStep, isSoundOn, setSoundOn } from './sound.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -126,6 +128,7 @@ shadowCatcher.rotation.x = -Math.PI / 2;
 shadowCatcher.position.y = 0.003;
 shadowCatcher.receiveShadow = true;
 scene.add(shadowCatcher);
+const footprints = new Footprints(scene);
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
 const outer = new THREE.Mesh(
@@ -535,6 +538,10 @@ function setGuide(on) {
   applyGuide();
 }
 $('guideBtn').addEventListener('click', () => setGuide(!guideOn));
+// 소리 켜기/끄기 (다음에 와도 기억)
+function applySoundBtn() { $('soundBtn').textContent = isSoundOn() ? '🔊 소리 끄기' : '🔇 소리 켜기'; }
+$('soundBtn').addEventListener('click', () => { setSoundOn(!isSoundOn()); applySoundBtn(); });
+applySoundBtn();
 $('guideClose').addEventListener('click', () => setGuide(false));
 $('changeBtn').addEventListener('click', openSelect);
 $('liteBtn').addEventListener('click', () => {
@@ -928,6 +935,8 @@ function updatePlayer(dt) {
   state.fallTarget = state.down ? 1 : 0;
   if (state.down) state.fallDir = state.down.dir;
   animateBody(body, state, dt, moving, state.gathering);
+  const side = stepCheck(state);
+  if (side && state.playing) { footprints.add(player.position, state.yaw, side); playStep(1); }
 }
 
 // ─────────────────────────────────────────────
@@ -1067,6 +1076,15 @@ function loop() {
   snowballs.update(dt);
   checkSnowballHits();
   remotes.update_frame(dt);
+  // 다른 사람 발자국 (소리는 가까이 있을 때만 작게)
+  for (const r of remotes.map.values()) {
+    const side = stepCheck(r.anim);
+    if (!side) continue;
+    footprints.add(r.root.position, r.yaw, side);
+    const d = r.root.position.distanceTo(player.visible ? player.position : camera.position);
+    playStep(Math.max(0, 1 - d / 9) * 0.45);
+  }
+  footprints.update(dt);
   updateMyLabel();
   sendState();
   updateCamera(dt, time);
