@@ -40,7 +40,7 @@ export function setSoundOn(v) {
 export function playStep(volume = 1) {
   if (!on || !ctx || ctx.state !== 'running' || volume <= 0.01) return;
   const t = ctx.currentTime;
-  const v = 0.22 * volume;
+  const v = 0.35 * volume;
   // 1) 푹 눌리는 낮은 소리
   hit(t, 0.11, 520 + Math.random() * 180, 1.2, v * 0.9, 'lowpass');
   // 2) 사각사각 알갱이
