@@ -72,10 +72,10 @@ export function playStep(volume = 1) {
   }
   const src = ctx.createBufferSource();
   src.buffer = steps[k];
-  const rate = 0.97 + Math.random() * 0.06; // 높낮이는 아주 살짝만
+  const rate = 1.0 + Math.random() * 0.07; // 높낮이는 아주 살짝만 (살짝 높은 쪽으로)
   src.playbackRate.value = rate;
   const g = ctx.createGain();
-  const vol = 0.5 * volume; // 발소리는 장식: 은은하게
+  const vol = 0.5 * volume * (0.7 + Math.random() * 0.45); // 발소리는 장식: 은은하게. 발마다 세기를 조금씩 다르게
   g.gain.setValueAtTime(vol, t);
   g.gain.setValueAtTime(vol, t + PLAY_LEN - FADE_LEN);
   g.gain.linearRampToValueAtTime(0, t + PLAY_LEN);
