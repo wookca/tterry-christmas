@@ -15,7 +15,9 @@ const BODY_R = 0.57 * SIZE;          // 몸통 반지름 (모델 기준 약 0.57
 export const SNOWMAN_BLOCK_R = BODY_R + 0.45; // 떼리앙 발 위치가 이 안으로는 못 들어옴 (몸통 + 떼리앙 두께)
 const BALL_R = BODY_R + 0.08, BALL_H = 1.72 * SIZE; // 눈덩이가 맞는 범위 (원통)
 
-const SNOW_MAT = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 }); // 눈더미와 같은 재질
+// 흰 눈 재질. 눈사람은 키가 커서 해를 등진 옆·뒤가 넓게 그늘져 회색으로 보이므로,
+// 스스로 조금 빛나게(emissive) 해서 그늘진 쪽도 흰 눈처럼 밝게 (2026-11-20 요청: 눈은 흰색)
+const SNOW_MAT = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0.35 });
 let gltfPromise = null;
 
 export class Snowman {
