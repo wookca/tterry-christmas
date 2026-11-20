@@ -100,7 +100,8 @@ const edgeMaterial = new THREE.ShaderMaterial({
     varying vec2 vUv;
     float depthOf(vec4 c) { return (c.g + c.b / 255.0) * ${DEPTH_RANGE.toFixed(1)}; }
     // 부드러운 선 대상(눈무더기 등, 부위 번호 ${SOFT_PART}): 선을 절반 두께, 쿨톤 회색으로
-    bool soft(vec4 c) { return c.a > 0.5 && abs(c.r * 255.0 - ${SOFT_PART}.0) < 0.5; }
+    // 202~209 모두 부드러운 선 (눈사람처럼 한 물체 안에 부위가 여럿이면 202, 203, 204 ... 로 나눠서 부위 경계에도 연한 선)
+    bool soft(vec4 c) { float id = c.r * 255.0; return c.a > 0.5 && id > ${SOFT_PART}.0 - 0.5 && id < ${SOFT_PART}.0 + 7.5; }
     // 1: 선 있음. kind: 양쪽이 '부드러운 물체 또는 빈 바닥'뿐이면 부드러운 선(1), 아니면 보통 선(0)
     float edgeAt(vec4 c, vec2 offset, out float kind) {
       vec4 n = texture2D(tId, vUv + offset);
