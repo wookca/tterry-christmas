@@ -85,7 +85,7 @@ const edgeMaterial = new THREE.ShaderMaterial({
     thickness: { value: 2 },
     depthThreshold: { value: 0.06 },
     color: { value: new THREE.Color(0x111111) },
-    softColor: { value: new THREE.Color(0xafc3e1) }, // 눈무더기 선: 내리는 눈 가장자리와 같은 연한 푸른 회색 (main.js snowflakeTexture 175,195,225)
+    softColor: { value: new THREE.Color(0xd1dbeb) }, // 눈무더기 선: 내리는 눈 가장자리가 화면에 실제로 보이는 밝은 회색 (스크린샷에서 측정)
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;

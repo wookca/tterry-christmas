@@ -186,7 +186,7 @@ function snowflakeTexture() {
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, 'rgba(255,255,255,1)');
   grad.addColorStop(0.38, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.6, 'rgba(175,195,225,0.55)'); // 가장자리 (눈무더기 선 색 outline.js softColor 0xafc3e1과 같게): 옅은 푸른 그늘 → 흰 배경에서도 보임
+  grad.addColorStop(0.6, 'rgba(175,195,225,0.55)'); // 가장자리: 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게): 옅은 푸른 그늘 → 흰 배경에서도 보임
   grad.addColorStop(1, 'rgba(175,195,225,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
