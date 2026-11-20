@@ -31,7 +31,7 @@ html, body {
   background: linear-gradient(to top, rgba(20, 35, 55, 0.55), rgba(20, 35, 55, 0) 65%);
 }
 .select-panel {
-  width: 100%; max-width: 840px; /* 넓은 화면: 떼리앙 카드 7개씩 두 줄 */
+  width: 100%; max-width: 720px;
   background: rgba(255, 255, 255, 0.94);
   border-radius: 20px; padding: 20px 18px 18px;
   box-shadow: 0 10px 40px rgba(20, 35, 55, 0.25);
@@ -119,7 +119,11 @@ html, body {
 @media (hover: none) and (pointer: coarse) { .guide-pc { display: none; } .guide-touch { display: block; } }
 /* 넓은 화면: 카드 7개씩 고르게 두 줄 (14개) */
 @media (min-width: 880px) {
-  .cards { display: grid; grid-template-columns: repeat(7, 104px); justify-content: center; }
+  .select-panel { max-width: 760px; }
+  .cards { display: grid; grid-template-columns: repeat(7, 90px); justify-content: center; gap: 9px; }
+  .card { padding: 6px 4px 8px; border-radius: 12px; }   /* 카드 85% 크기 (PC만, 2026-11-20) */
+  .card .thumb { width: 74px; height: 74px; margin-bottom: 5px; }
+  .card .name { font-size: 13px; }
 }
 /* 폰: 떼리앙 카드를 위아래 두 줄로 놓고 옆으로 넘겨 보기 */
 @media (max-width: 520px) {
