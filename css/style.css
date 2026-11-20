@@ -80,6 +80,17 @@ html, body {
   pointer-events: auto; border: 0; border-radius: 999px; padding: 9px 14px;
   background: rgba(255, 255, 255, 0.85); font: inherit; font-size: 13px; cursor: pointer;
 }
+/* 아이콘 버튼 (소리, 조작 방법): 동그란 버튼 */
+.hud-btn.hud-icon { width: 38px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.hud-svg { width: 22px; height: 22px; fill: none; stroke: #23303d; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.hud-svg .spk { fill: #23303d; }
+.hud-svg .dot { fill: #23303d; stroke: none; }
+.hud-svg .sil { fill: #23303d; stroke: none; }
+.hud-svg .arr { stroke: #d6343a; stroke-width: 2; }
+.hud-icon .snd-off { display: none; }
+.hud-icon.muted .snd-on { display: none; }
+.hud-icon.muted .snd-off { display: inline; stroke: #d6343a; }
+.hud-icon.off { opacity: 0.55; }
 /* 조작 가이드 (왼쪽에 떠 있는 패널) */
 .guide {
   position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 10;
@@ -130,6 +141,8 @@ html, body {
   .hud { top: 8px; left: 8px; right: 8px; align-items: flex-start; gap: 6px; }
   .hud-name { font-size: 12px; padding: 7px 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
   .hud-btn { font-size: 12px; padding: 7px 10px; }
+  .hud-btn.hud-icon { width: 32px; height: 32px; padding: 0; }
+  .hud-svg { width: 19px; height: 19px; }
 }
 .hud-name, .hud-btn { white-space: nowrap; }
 .hud-right { flex-wrap: wrap; justify-content: flex-end; }

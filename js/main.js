@@ -590,19 +590,25 @@ $('startBtn').addEventListener('click', startGame);
 
 // 조작 가이드 켜기/끄기 (선택은 기억해 둠)
 let guideOn = true;
-try { guideOn = localStorage.getItem('guideOn') !== '0'; } catch {}
+try { guideOn = localStorage.getItem('guideOn2') !== '0'; } catch {} // 키 이름을 바꿔서 예전에 닫았던 사람도 한 번 다시 보이게
 function applyGuide() {
   $('guide').classList.toggle('hidden', !guideOn || !state.playing);
-  $('guideBtn').textContent = guideOn ? '가이드 끄기' : '가이드 보기';
+  $('guideBtn').classList.toggle('off', !guideOn); // 가이드가 닫혀 있으면 아이콘을 흐리게
+  $('guideBtn').title = guideOn ? '조작 방법 닫기' : '조작 방법 보기';
 }
 function setGuide(on) {
   guideOn = on;
-  try { localStorage.setItem('guideOn', on ? '1' : '0'); } catch {}
+  try { localStorage.setItem('guideOn2', on ? '1' : '0'); } catch {}
   applyGuide();
 }
 $('guideBtn').addEventListener('click', () => setGuide(!guideOn));
 // 소리 켜기/끄기 (다음에 와도 기억)
-function applySoundBtn() { $('soundBtn').textContent = isSoundOn() ? '🔊 소리 끄기' : '🔇 소리 켜기'; }
+function applySoundBtn() {
+  const on = isSoundOn();
+  $('soundBtn').classList.toggle('muted', !on); // 꺼져 있으면 스피커에 빨간 ×
+  $('soundBtn').title = on ? '소리 끄기' : '소리 켜기';
+  $('soundBtn').setAttribute('aria-label', $('soundBtn').title);
+}
 $('soundBtn').addEventListener('click', () => { setSoundOn(!isSoundOn()); applySoundBtn(); });
 applySoundBtn();
 $('guideClose').addEventListener('click', () => setGuide(false));

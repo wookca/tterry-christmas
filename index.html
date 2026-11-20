@@ -46,10 +46,23 @@
   <div id="hud" class="hud hidden">
     <div class="hud-left"><div class="hud-name" id="hudName"></div><button class="hud-online hidden" id="online" title="채널 바꾸기"></button></div>
     <div class="hud-right">
-      <button id="soundBtn" class="hud-btn">🔊 소리 끄기</button>
-      <button id="guideBtn" class="hud-btn">가이드 끄기</button>
+      <!-- 소리: 아이콘 하나. 나중에 배경음악이 생기면 누를 때 BGM/효과음 두 줄짜리 작은 창이 열리게 바꿀 자리 -->
+      <button id="soundBtn" class="hud-btn hud-icon" type="button" aria-label="소리 끄기" title="소리 끄기">
+        <svg viewBox="0 0 24 24" class="hud-svg"><path class="spk" d="M4 9.5 H7.5 L12 5.5 V18.5 L7.5 14.5 H4 Z"/>
+          <g class="snd-on"><path d="M15 9 Q17 12 15 15"/><path d="M17.6 6.6 Q21.4 12 17.6 17.4"/></g>
+          <g class="snd-off"><path d="M15.5 9.5 L20.5 14.5 M20.5 9.5 L15.5 14.5"/></g></svg>
+      </button>
+      <button id="guideBtn" class="hud-btn hud-icon" type="button" aria-label="조작 방법" title="조작 방법">
+        <svg viewBox="0 0 24 24" class="hud-svg"><circle cx="12" cy="12" r="9"/><path d="M12 11 V16.5"/><circle class="dot" cx="12" cy="7.6" r="1.15"/></svg>
+      </button>
       <button id="liteBtn" class="hud-btn hidden">경량 모델로 보기</button>
-      <button id="changeBtn" class="hud-btn">떼리앙 변경</button>
+      <!-- 떼리앙 변경: 포떼링 실루엣 + 도는 화살표 -->
+      <button id="changeBtn" class="hud-btn hud-icon" type="button" aria-label="떼리앙 변경" title="떼리앙 변경">
+        <svg viewBox="0 0 24 24" class="hud-svg">
+          <path class="arr" d="M19.6 7.6 A9.2 9.2 0 1 0 21.2 12.6"/><path class="arr" d="M20.9 3.9 L19.7 7.7 L15.9 7"/>
+          <image href="img/ui/potteling_sil.png" x="4.9" y="4.6" width="14.2" height="14.2"/>
+        </svg>
+      </button>
     </div>
   </div>
   <div id="ring" class="ring hidden">
