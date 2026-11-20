@@ -1573,3 +1573,11 @@ async function init() {
   window.__game = { state, player, camera, CHARACTERS, snowballs, remotes, get net() { return net; } };
 }
 init();
+
+// 선택창 카드: 마우스 휠(위아래)을 굴리면 옆으로 넘김 → 숨어 있던 맨 오른쪽 열(치떼링·지떼링)이 보임
+$('cards').addEventListener('wheel', (e) => {
+  const el = e.currentTarget;
+  if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  el.scrollBy({ left: e.deltaY > 0 ? 99 : -99 });
+}, { passive: false });

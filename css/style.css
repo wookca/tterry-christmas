@@ -117,11 +117,17 @@ html, body {
 .ico .barfg { fill: #ff8a3d; }
 .guide-touch { display: none; }
 @media (hover: none) and (pointer: coarse) { .guide-pc { display: none; } .guide-touch { display: block; } }
-/* 넓은 화면: 카드 7개씩 고르게 두 줄 (14개) */
-@media (min-width: 880px) {
-  .select-panel { max-width: 760px; }
-  .cards { display: grid; grid-template-columns: repeat(7, 90px); justify-content: center; gap: 9px; }
-  .card { padding: 6px 4px 8px; border-radius: 12px; }   /* 카드 85% 크기 (PC만, 2026-11-20) */
+/* 넓은 화면: 카드 7개씩 두 줄인데 6줄(열)만 보이고, 맨 오른쪽 열(치떼링·지떼링)은 숨어 있음
+   마우스 휠을 굴리면 옆으로 넘어가서 보임 (숨은 떼리앙, 2026-11-20 요청) */
+@media (min-width: 680px) {
+  .select-panel { max-width: 640px; }
+  .cards {
+    display: grid; grid-template-columns: repeat(7, 90px); gap: 9px;
+    width: calc(90px * 6 + 9px * 5); margin: 0 auto; padding: 4px 0 10px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-snap-type: x mandatory; scroll-behavior: smooth;
+  }
+  .cards::-webkit-scrollbar { display: none; }
+  .card { padding: 6px 4px 8px; border-radius: 12px; scroll-snap-align: end; }   /* 카드 85% 크기 */
   .card .thumb { width: 74px; height: 74px; margin-bottom: 5px; }
   .card .name { font-size: 13px; }
 }
@@ -133,6 +139,9 @@ html, body {
     touch-action: pan-x; scrollbar-width: thin;
   }
   .card { scroll-snap-align: start; }
+  /* 폰도 치떼링·지떼링은 맨 끝 (넘겨야 보임) */
+  .card[data-id="chi"] { order: 1; }
+  .card[data-id="ji"] { order: 2; }
 }
 
 /* 좁은 화면(폰): 그림 + 제목만 작게, 가운데 떼리앙을 가리지 않게 */
