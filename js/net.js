@@ -2,7 +2,7 @@
 // 온라인 접속 (Cloudflare 서버와 웹소켓)
 // 서버가 없으면 혼자 하기 모드로 동작
 // ─────────────────────────────────────────────
-import { serverUrl } from './config.js';
+import { serverUrl, CLIENT_VER } from './config.js';
 
 export async function detectServer() {
   try {
@@ -43,7 +43,7 @@ export class Net {
 
   open() {
     const base = serverUrl().replace(/^http/, 'ws'); // https → wss
-    const ws = new WebSocket(`${base}/ws?ch=${this.ch}`);
+    const ws = new WebSocket(`${base}/ws?ch=${this.ch}&v=${CLIENT_VER}`);
     this.ws = ws;
     this.h.onStatus?.(`채널 ${this.ch} 접속 중…`);
     // re: 이 채널에 바로 전에 쓰던 닉네임 (떼리앙·닉네임 바꾸기나 잠깐 끊겨서 다시 접속할 때) → 서버 기록에서 "나감+들어옴" 대신 "닉네임 변경"으로
@@ -62,6 +62,11 @@ export class Net {
           this.lastCh = this.ch; this.lastName = m.name;
           this.h.onWelcome?.(m);
           this.h.onStatus?.(null);
+          break;
+        case 'old':
+          // 서버가 "옛 화면"이라며 거절 → 다시 접속하지 않고 새로고침 안내
+          this.closedByUs = true;
+          this.h.onOld?.();
           break;
         case 'full':
           this.ch += 2; this.retry = 0; // 같은 맵의 다음 채널로 (홀수 = 눈밭, 짝수 = 숲)

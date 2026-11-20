@@ -22,6 +22,9 @@ const STALE_MS = 70000;   // 이만큼 아무 신호가 없으면 끊긴 것으�
 const MAX_MSG = 1024;     // 메시지 최대 크기(바이트)
 const LOG_MAX = 100;      // 채널 기록(입장·닉네임 변경·퇴장) 최근 몇 개까지 들고 있을지
 const RE_WINDOW = 15000;  // 다시 접속(떼리앙·닉네임 바꾸기, 잠깐 끊김)으로 볼 시간: 나간 뒤 이 안에 돌아오면 퇴장 기록을 지움
+// 게임 화면 버전: 이보다 옛날 화면(또는 버전을 안 보내는 아주 옛 화면)은 접속을 거절 → 브라우저를 오래 켜 둔 옛 화면이 계속 들어오는 것 막기
+// 게임 쪽 js/config.js CLIENT_VER 와 맞춤. 옛 화면을 모두 내보내고 싶을 때 둘 다 1 올리고 배포
+const MIN_CLIENT = 1;
 const cleanName = (v) => String(v || '').replace(/[<>&"'`]/g, '').trim().slice(0, 12);
 
 // 접속을 허용할 주소인지 확인 (다른 사이트에서 몰래 붙는 것 방지)
@@ -51,7 +54,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 7, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 8, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -67,6 +70,16 @@ export default {
 
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade') !== 'websocket') return new Response('websocket only', { status: 426 });
+      // 옛 화면: 소켓만 잠깐 열어 "새 버전" 알림을 보내고 바로 닫음 (채널에는 안 들어감, 기록에도 안 남음)
+      const cv = parseInt(url.searchParams.get('v') || '0', 10) || 0;
+      if (cv < MIN_CLIENT) {
+        const pair = new WebSocketPair();
+        const [client, server] = Object.values(pair);
+        server.accept();
+        server.send(JSON.stringify({ t: 'old', min: MIN_CLIENT }));
+        server.close(4002, 'old client');
+        return new Response(null, { status: 101, webSocket: client });
+      }
       const ch = Math.min(MAX_CHANNELS, Math.max(1, parseInt(url.searchParams.get('ch') || '1', 10) || 1));
       const stub = env.CHANNELS.get(env.CHANNELS.idFromName(`ch-${ch}`));
       return stub.fetch(request);

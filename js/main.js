@@ -1522,6 +1522,18 @@ function setNetStatus(text) {
   el.textContent = text || '';
   el.classList.toggle('hidden', !text);
 }
+// 서버가 새 버전을 요구함: 한 번은 자동으로 새로고침, 그래도 옛 화면이면(캐시) 안내만 띄움
+function onOldClient() {
+  let last = 0;
+  try { last = Number(sessionStorage.getItem('tterryOldReload')) || 0; } catch {}
+  if (Date.now() - last > 60000) {
+    try { sessionStorage.setItem('tterryOldReload', String(Date.now())); } catch {}
+    setNetStatus('새 버전이 나왔어요. 새로고침하는 중…');
+    setTimeout(() => location.reload(), 800);
+    return;
+  }
+  setNetStatus('새 버전이 나왔어요. 새로고침(F5) 해 주세요');
+}
 function updateOnlineHud() {
   if (!net || !net.connected) { $('online').classList.add('hidden'); return; }
   $('online').textContent = `채널 ${net.ch} · ${MAPS[mapOf(net.ch)].name} · ${remotes.count + 1}명 ▾`;
@@ -1618,6 +1630,7 @@ function connectOnline(ch) {
     },
     onDisconnect: () => { remotes.clear(); updateOnlineHud(); },
     onStatus: setNetStatus,
+    onOld: onOldClient,
   });
   net.ch = START_CH;
   net.join(() => ({
