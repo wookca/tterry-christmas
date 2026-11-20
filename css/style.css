@@ -68,6 +68,24 @@ html, body {
   font-size: 30px; color: #a9b7c5;
 }
 .card .name { font-size: 14px; font-weight: 700; }
+/* 히든 떼리앙 잠김: 회색 실루엣 + 자물쇠 */
+.card .thumb { position: relative; }
+.card .art { position: absolute; inset: 0; background: center / 92% no-repeat; transition: filter 0.8s ease; }
+.card.locked .art { filter: brightness(0) invert(0.66); }
+.card.unlocking .art { filter: none; transition-delay: 0.45s; }
+.card.locked { cursor: default; }
+.card.locked:hover { transform: none; }
+.card.locked .name { color: #8796a5; }
+.card .lock { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; overflow: visible; }
+.card .lock .body { fill: #5f6f80; }
+.card .lock .hole { fill: #eef3f8; }
+.card .lock .shackle { fill: none; stroke: #5f6f80; stroke-width: 2.6; stroke-linecap: round; transform-origin: 16px 11px; }
+.card.unlocking .lock .shackle { animation: lock-open 0.5s cubic-bezier(.3,1.6,.5,1) forwards; }
+.card.unlocking .lock { animation: lock-gone 0.6s ease-in 0.75s forwards; }
+@keyframes lock-open { 0% { transform: translateY(0); } 45% { transform: translateY(-3.5px); } 100% { transform: translateY(-3.5px) rotate(35deg); } }
+@keyframes lock-gone { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(0.6) translateY(-10px); opacity: 0; } }
+.card.shake { animation: card-shake 0.35s; }
+@keyframes card-shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
 .card .tag { font-size: 11px; color: #8796a5; margin-top: 2px; }
 .start-btn {
   width: 100%; margin-top: 6px; padding: 14px; border: 0; border-radius: 12px;
@@ -244,8 +262,9 @@ html, body {
 /* 채널 기록 창 (왼쪽 위 버튼으로 열기): 어두운 반투명 */
 .hud-icon.on { background: rgba(35, 48, 61, 0.8); }
 .hud-icon.on .hud-svg { stroke: #fff; }
-#logBtn { position: relative; }
-#logBtn.unread::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: #d6343a; box-shadow: 0 0 0 2px #fff; }
+/* 빨간 점: 새로 열린 떼리앙이 있으면 떼리앙 변경 버튼에 (채널 기록 버튼의 빨간 점은 2026-11-20 없앰) */
+#changeBtn { position: relative; }
+#changeBtn.unread::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: #d6343a; box-shadow: 0 0 0 2px #fff; }
 .log-panel {
   position: fixed; left: 12px; top: 60px; z-index: 12; width: 320px; max-width: calc(100% - 24px);
   background: rgba(14, 20, 30, 0.72); color: #e9eef4; border-radius: 14px; padding: 10px 12px 8px;

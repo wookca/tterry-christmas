@@ -13,7 +13,7 @@ import { addTrees, setTreeFocus } from './trees.js';
 import { SnowPiles, pickReach } from './snowpiles.js';
 import { Campfire, FIRE_BLOCK_R } from './campfire.js';
 import { Snowman, SNOWMAN_BLOCK_R, SNOWMAN_CHANNELS } from './snowman.js';
-import { addStat, setUnlockHandler } from './eggs.js';
+import { addStat, setUnlockHandler, isLockedChar, pendingReveals, markRevealed } from './eggs.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
@@ -341,7 +341,12 @@ const fbxLoader = new FBXLoader();
 const gltfLoader = new GLTFLoader();
 snowman = new Snowman(scene, gltfLoader, GLB_SCALE);
 // 히든 떼리앙이 새로 열렸을 때 (어느 떼리앙인지는 아직 미정: js/eggs.js 의 HIDDEN)
-setUnlockHandler((key) => { track('hidden_unlock', { which: key }); });
+setUnlockHandler((key, h) => {
+  track('hidden_unlock', { which: key, character: h.char });
+  updateChangeDot();
+});
+// 새로 열린 떼리앙이 있으면 떼리앙 변경 버튼에 빨간 점 (선택창에서 자물쇠가 열리는 걸 보면 사라짐)
+function updateChangeDot() { $('changeBtn').classList.toggle('unread', pendingReveals().length > 0); }
 // ─────────────────────────────────────────────
 // 채널마다 맵: 홀수 채널 = 숲 (지금 크기, 50명), 짝수 채널 = 큰 숲 (넓이 2배, 100명)
 // 두 맵 모두 맵 밖에 눈나무. 주소 끝에 ?ch=2 를 붙이면 그 채널로 시작 (혼자 하기 모드에서도 그 맵)
@@ -580,11 +585,19 @@ function buildCards() {
     b.className = 'card';
     b.dataset.id = ch.id;
     b.disabled = !ch.ready;
+    // 히든 떼리앙(치떼링·지떼링): 열릴 때까지 회색 실루엣 + 자물쇠, 이름은 ???
+    // (방금 열렸는데 자물쇠 열리는 모습을 아직 못 봤으면 잠긴 모습으로 그려 두고 revealCards 에서 열어 줌)
+    const locked = isLockedChar(ch.id) || pendingReveals().includes(ch.id);
+    if (locked) b.classList.add('locked');
     b.innerHTML = `
-      <div class="thumb" ${ch.thumb ? `style="background-image:url(${ch.thumb})"` : ''}>${ch.thumb ? '' : '?'}</div>
-      <div class="name">${charName(ch, defaultVariant(ch))}</div>`;
+      <div class="thumb">${ch.thumb ? `<div class="art" style="background-image:url(${ch.thumb})"></div>` : '?'}${locked ? LOCK_SVG : ''}</div>
+      <div class="name">${locked ? '???' : charName(ch, defaultVariant(ch))}</div>`;
     // 버전이 있는 떼리앙(양념포떼링)은 이미 고른 상태에서 다시 누를 때마다 다음 색으로
     if (ch.ready) b.addEventListener('click', () => {
+      if (b.classList.contains('locked')) { // 잠긴 카드: 살짝 흔들리기만
+        b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+        return;
+      }
       if (ch.variants && state.selectedId === ch.id) {
         const i = ch.variants.findIndex((v) => v.id === state.variant);
         pickVariant(ch, ch.variants[(i + 1) % ch.variants.length].id);
@@ -592,6 +605,34 @@ function buildCards() {
     });
     wrap.appendChild(b);
   }
+}
+
+// 자물쇠 그림 (고리 shackle 는 열릴 때 위로 올라가며 돌아감)
+const LOCK_SVG = `<svg class="lock" viewBox="0 0 24 24" aria-hidden="true">
+  <path class="shackle" d="M8 11 V8 a4 4 0 0 1 8 0 V11"/>
+  <rect class="body" x="5.5" y="10.5" width="13" height="10" rx="2.2"/>
+  <circle class="hole" cx="12" cy="15.3" r="1.4"/></svg>`;
+
+// 선택창이 열릴 때: 새로 열린 히든 떼리앙 카드는 자물쇠가 열리고 실루엣에 색이 돌아옴
+function revealCards() {
+  const ids = pendingReveals();
+  if (!ids.length) return;
+  setTimeout(() => {
+    for (const id of ids) {
+      const b = document.querySelector(`.card[data-id="${id}"]`);
+      const ch = CHARACTERS.find((c) => c.id === id);
+      if (!b || !ch) continue;
+      b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); // 숨은 칸이면 보이게
+      b.classList.add('unlocking');
+      setTimeout(() => {
+        b.classList.remove('locked');
+        b.querySelector('.name').textContent = charName(ch, defaultVariant(ch));
+      }, 700);
+      setTimeout(() => { b.classList.remove('unlocking'); b.querySelector('.lock')?.remove(); }, 1500);
+      markRevealed(id);
+    }
+    updateChangeDot();
+  }, 450);
 }
 
 function selectCard(id) {
@@ -641,7 +682,7 @@ async function pickVariant(ch, variantId) {
   state.variant = variantId;
   ch.lastVariant = variantId;
   // 카드 그림도 고른 색으로
-  const card = document.querySelector(`.card[data-id="${ch.id}"] .thumb`);
+  const card = document.querySelector(`.card[data-id="${ch.id}"] .art`);
   if (card) card.style.backgroundImage = `url(${cardImage(ch, variantId)})`;
   const nameEl = document.querySelector(`.card[data-id="${ch.id}"] .name`);
   if (nameEl) nameEl.textContent = charName(ch, variantId);
@@ -663,6 +704,7 @@ function openSelect() {
   $('select').classList.remove('hidden');
   $('hud').classList.add('hidden');
   $('guide').classList.add('hidden');
+  revealCards();
 }
 
 async function startGame() {
@@ -1652,6 +1694,7 @@ async function init() {
     return;
   }
   buildCards();
+  updateChangeDot();
   selectCard(first.id);
   $('loading').classList.add('hidden');
   openSelect();
@@ -1706,7 +1749,7 @@ function moveCardSelection(dir, e) {
   const a = document.activeElement;
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return false;
   e.preventDefault();
-  const cards = [...document.querySelectorAll('.card:not(:disabled)')];
+  const cards = [...document.querySelectorAll('.card:not(:disabled):not(.locked)')];
   const cur = cards.find((c) => c.dataset.id === state.selectedId) || cards[0];
   if (!cur) return true;
   const r0 = cur.getBoundingClientRect();
