@@ -855,6 +855,7 @@ function beginSnowAction() {
     state.power = 0;
     $('power').classList.remove('hidden');
   } else {
+    if (campfire.inMeltZone(player.position)) return; // 눈 녹은 땅에서는 모을 눈이 없음
     state.wantGather = true;   // 가만히 있으면 모으기 시작
     state.target = null;       // 오른쪽 클릭 이동 중이었다면 멈춤
   }
@@ -1073,6 +1074,16 @@ function updateSnowAction(dt) {
       performance.now() - press.t > HOLD_DELAY * 1000) {
     press.started = true;
     beginSnowAction();
+  }
+  // 모닥불 가까이(눈 녹은 땅): 손에 든 눈덩이가 녹아 없어지고, 모으던 것도 멈춤
+  if (state.playing && campfire.inMeltZone(player.position)) {
+    if (state.wantGather) cancelGather();
+    if (state.hasBall) {
+      if (state.aiming) { state.aiming = false; $('power').classList.add('hidden'); hideAim(); }
+      state.hasBall = false; state.ball2 = false;
+      state.gather = 0;
+      handBall.visible = false; handBall2.visible = false;
+    }
   }
   // 눈 모으기: 누르고 있고, 가만히 서 있을 때만 차오름
   if (state.wantGather && !state.hasBall) {
@@ -1344,6 +1355,7 @@ function loop() {
   // 만화 외곽선: 가까울수록 살짝 두껍게
   outline.setThickness(THREE.MathUtils.clamp(1.6 * Math.sqrt(CAM_DIST / camera.position.distanceTo(lookAt)), 1, 2.4));
   outline.render(scene, camera);
+  campfire.renderFlames(renderer, scene, camera); // 불꽃은 선 없이 맨 마지막에
   requestAnimationFrame(loop);
 }
 
