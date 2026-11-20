@@ -1258,7 +1258,7 @@ function updatePlayer(dt) {
   animateBody(body, state, dt, moving, state.gathering);
   if (landedCheck(state) && state.playing) imprints.add(player.position, state.yaw, state.fallDir, state.model);
   const side = stepCheck(state);
-  if (side && state.playing) { footprints.add(player.position, state.yaw, side); playStep(1, player.position); } // 매 발 짧고 가볍게 (작은 강아지 발걸음 느낌)
+  if (side && state.playing) { footprints.add(player.position, state.yaw, side, state.ab.feet); playStep(1, player.position); } // 매 발 짧고 가볍게 (작은 강아지 발걸음 느낌)
 }
 
 // ─────────────────────────────────────────────
@@ -1416,7 +1416,7 @@ function loop() {
     if (landedCheck(r.anim)) imprints.add(r.root.position, r.yaw, r.anim.fallDir, r.model);
     const side = stepCheck(r.anim);
     if (!side) continue;
-    footprints.add(r.root.position, r.yaw, side);
+    footprints.add(r.root.position, r.yaw, side, abilityOf(r.char).feet);
     const d = r.root.position.distanceTo(player.visible ? player.position : camera.position);
     playStep(Math.max(0, 1 - d / 9) * 0.45, r.root.position);
   }

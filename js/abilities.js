@@ -8,8 +8,13 @@ export const SLOW_SPEED = 0.75;   // 치떼링·지떼링 이동 속도 배율
 export const BIG_BALL = 1.8;      // 지떼링 눈덩이 크기 배율
 export const BIG_HIT_EXTRA = 0.55; // 지떼링 눈덩이가 맞히는 범위를 이만큼 넓힘 (m)
 
+// 치떼링은 둘이 어깨동무한 모습 → 발자국도 두 사람 몫 (한 걸음에 2개, 한 쌍 걸음에 4개)
+// 값: 몸 가운데에서 옆(모델 +X 쪽)으로 떨어진 거리(m). 1 = 한쪽 발 차례, -1 = 다른 쪽 발 차례
+// (models/chi.glb 발바닥 위치에서 잼: 왼쪽 몸 -0.37/-0.12, 오른쪽 몸 0.08/0.36)
+const CHI_FEET = { 1: [-0.123, 0.364], '-1': [-0.369, 0.084] };
+
 const ABILITIES = {
-  chi: { twoBalls: true, speed: SLOW_SPEED },
+  chi: { twoBalls: true, speed: SLOW_SPEED, feet: CHI_FEET },
   ji: { bigBall: true, speed: SLOW_SPEED },
 };
 
