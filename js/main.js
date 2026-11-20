@@ -1011,7 +1011,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   const k = KEYMAP[e.code];
-  if (k && !state.playing && moveCardSelection(k, e)) return;
+  if (k && !state.playing && e.code.startsWith('Arrow') && moveCardSelection(k, e)) return; // 선택창: 방향키만 (WASD는 닉네임 입력용)
   if (!k || !state.playing) return;
   e.preventDefault();
   if (!e.repeat) getUpIfDown();
@@ -1622,7 +1622,7 @@ $('cards').addEventListener('wheel', (e) => {
   });
 }
 
-// 선택창이 열려 있을 때 방향키·WASD: 선택된 카드를 그 방향 옆 카드로 바꿈 (닉네임 입력 중에는 글자 입력 그대로)
+// 선택창이 열려 있을 때 방향키(WASD는 아님): 선택된 카드를 그 방향 옆 카드로 바꿈 (닉네임 입력 중에는 글자 입력 그대로)
 // 화면에 놓인 위치로 찾아서 PC(7칸씩 두 줄)·폰(옆으로 넘기는 두 줄) 모두 같은 방향으로 움직임
 function moveCardSelection(dir, e) {
   if ($('select').classList.contains('hidden')) return false;
