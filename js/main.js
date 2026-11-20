@@ -10,7 +10,8 @@ import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js
 import { Footprints, stepCheck } from './footprints.js';
 import { Imprints, landedCheck } from './imprints.js';
 import { addTrees, setTreeFocus } from './trees.js';
-import { SnowPiles, PICK_REACH } from './snowpiles.js';
+import { SnowPiles, pickReach } from './snowpiles.js';
+import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
 
@@ -296,7 +297,8 @@ function applyMap(ch) {
   currentMap = key;
   const map = MAPS[key];
   setWorldRadius(map.radius);
-  snowPiles.show(key, map.radius, key === 'big' ? 20 : 12); // 큰 맵은 넓은 만큼 더 많이
+  // 눈무더기: 일단 내 컴퓨터가 놓아 두고, 온라인이면 서버가 알려주는 목록으로 바뀜 (큰 맵은 넓은 만큼 더 많이)
+  snowPiles.startLocal(key === 'big' ? PILE_MAX_BIG : PILE_MAX_SMALL, map.radius);
   clampToWorld(player.position);
   if (!treeSets[key]) {
     treeSets[key] = addTrees(scene, gltfLoader, GLB_SCALE, map.radius)
@@ -733,7 +735,7 @@ function moveTo(x, y) {
   if (pile) {
     const away = tmpPile.set(player.position.x - pile.pos.x, 0, player.position.z - pile.pos.z);
     if (away.lengthSq() < 1e-4) away.set(0, 0, 1);
-    away.normalize().multiplyScalar(PICK_REACH);
+    away.normalize().multiplyScalar(pickReach(pile));
     state.target = new THREE.Vector3(pile.pos.x + away.x, 0, pile.pos.z + away.z);
     clampToWorld(state.target);
     state.pilePick = pile;
@@ -794,8 +796,10 @@ const tmpPile = new THREE.Vector3();
 function arriveAtPile() {
   const pile = state.pilePick;
   state.pilePick = null;
-  if (!pile || state.hasBall || !state.playing || state.down) return;
-  if (Math.hypot(pile.pos.x - player.position.x, pile.pos.z - player.position.z) > PICK_REACH + 0.4) return;
+  if (!pile || !pile.up || state.hasBall || !state.playing || state.down) return; // 그새 누가 먼저 집었으면 그냥 멈춤
+  if (Math.hypot(pile.pos.x - player.position.x, pile.pos.z - player.position.z) > pickReach(pile) + 0.4) return;
+  if (!snowPiles.take(pile.id)) return;
+  net?.send({ t: 'take', id: pile.id }); // 서버가 모두에게 '사라짐'을 알림
   state.yaw = Math.atan2(pile.pos.x - player.position.x, pile.pos.z - player.position.z); // 더미 쪽을 보고
   player.rotation.y = state.yaw;
   finishGather();
@@ -1217,6 +1221,7 @@ function loop() {
     playStep(Math.max(0, 1 - d / 9) * 0.45, r.root.position);
   }
   footprints.update(dt);
+  snowPiles.update(dt, player.visible ? [player.position] : []);
   imprints.update(dt);
   updateMyLabel();
   sendState();
@@ -1377,6 +1382,7 @@ function connectOnline(ch) {
     onWelcome: (m) => {
       remotes.clear();
       applyMap(net.ch); // 꽉 차서 다른 채널로 넘어갔을 수도 있으니 맵 다시 맞춤
+      if (Array.isArray(m.piles)) snowPiles.setFromServer(m.piles); // 옛 서버면 내 컴퓨터 눈무더기 그대로
       m.players.forEach((p) => remotes.add(p));
       setContext({ channel: net.ch, map: mapOf(net.ch) });
       if (joinedCh !== net.ch) track('channel_join', { channel: net.ch, map: mapOf(net.ch), players: m.players.length + 1 }); // 재접속은 빼고
@@ -1389,6 +1395,7 @@ function connectOnline(ch) {
     onLeave: (id) => { remotes.remove(id); updateOnlineHud(); },
     onState: (m) => remotes.update(m),
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
+    onPile: (m) => snowPiles.apply(m),
     onThrow: (m) => {
       remotes.thrown(m.id);
       snowballs.throwBall({ owner: String(m.id), from: new THREE.Vector3(m.fx, m.fy, m.fz), velocity: new THREE.Vector3(m.vx, m.vy, m.vz) });

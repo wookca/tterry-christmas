@@ -11,6 +11,7 @@
 // 채널 하나 = Durable Object 하나. 같은 채널 사람들끼리만 서로 보임.
 // ─────────────────────────────────────────────
 import { DurableObject } from 'cloudflare:workers';
+import { maxPilesForChannel, rng, makePiles, regrowDue, regrowDelay, publicPile, PILE_TAKE_RANGE } from '../js/pilelogic.js';
 
 const MAX_PLAYERS = 50;   // 홀수 채널(숲) 최대 인원
 const MAX_CHANNELS = 20;  // 채널 수 상한
@@ -47,7 +48,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 4, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 5, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -140,6 +141,27 @@ export class Channel extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  // ── 눈무더기: 채널마다 서버가 한 벌을 들고 있음 (저장소에도 저장 → 서버가 잠들었다 깨도 그대로)
+  async ensurePiles(ch) {
+    if (this.piles) return;
+    this.rand ||= rng(Date.now() ^ (ch * 7919));
+    const saved = await this.ctx.storage.get('piles');
+    if (saved && saved.ch === ch && Array.isArray(saved.list)) this.piles = saved.list;
+    else { this.piles = makePiles(maxPilesForChannel(ch), radiusFor(ch), this.rand); this.savePiles(ch); }
+    this.pileCh = ch;
+  }
+  savePiles(ch) {
+    this.ctx.storage.put('piles', { ch, list: this.piles }).catch(() => {});
+  }
+  // 다시 자랄 시간이 된 더미를 새 자리에 놓고 모두에게 알림 (사람 발밑은 피함)
+  growPiles(now) {
+    if (!this.piles || !this.piles.some((q) => !q.up && now >= q.at)) return;
+    const avoid = this.players().map((o) => ({ x: o.p.x || 0, z: o.p.z || 0 }));
+    const grown = regrowDue(this.piles, radiusFor(this.pileCh), now, this.rand, avoid);
+    for (const q of grown) this.broadcast({ t: 'pile', up: 1, ...publicPile(q) });
+    if (grown.length) this.savePiles(this.pileCh);
+  }
+
   broadcast(msg, exceptId) {
     const s = JSON.stringify(msg);
     for (const { ws, p } of this.players()) {
@@ -161,6 +183,8 @@ export class Channel extends DurableObject {
     // 마지막 신호 시각 (3초에 한 번만 저장)
     const now = Date.now();
     if (!p.seen || now - p.seen > 3000) { p.seen = now; try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ } }
+    await this.ensurePiles(p.ch);
+    this.growPiles(now);
 
     switch (msg.t) {
       case 'hello': {
@@ -180,7 +204,7 @@ export class Channel extends DurableObject {
         p.m = 0; p.g = 0; p.b = 0; p.a = 0; p.d = 0;
         ws.serializeAttachment(p);
         const others = this.players().filter((o) => o.p.id !== p.id).map((o) => this.publicState(o.p));
-        ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: maxFor(p.ch) }));
+        ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: maxFor(p.ch), piles: this.piles.filter((q) => q.up).map(publicPile) }));
         this.broadcast({ t: 'join', p: this.publicState(p) }, p.id);
         return;
       }
@@ -211,6 +235,18 @@ export class Channel extends DurableObject {
           vx: r2(num(msg.vx, -40, 40)), vy: r2(num(msg.vy, -10, 30)), vz: r2(num(msg.vz, -40, 40)),
         };
         this.broadcast(t, p.id);
+        return;
+      }
+      case 'take': {
+        // 눈무더기 집기: 아직 있고, 그 사람이 가까이 있으면 사라지게 하고 모두에게 알림
+        if (!p.joined) return;
+        const q = this.piles.find((x) => x.id === Number(msg.id));
+        if (!q || !q.up) { ws.send(JSON.stringify({ t: 'pile', id: Number(msg.id), up: 0 })); return; }
+        if (Math.hypot((p.x || 0) - q.x, (p.z || 0) - q.z) > PILE_TAKE_RANGE + q.s) return;
+        q.up = false;
+        q.at = now + regrowDelay(this.rand);
+        this.broadcast({ t: 'pile', id: q.id, up: 0, by: p.id });
+        this.savePiles(this.pileCh);
         return;
       }
       case 'hit': {

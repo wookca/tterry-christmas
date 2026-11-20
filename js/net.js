@@ -68,6 +68,7 @@ export class Net {
         case 'state': this.h.onState?.(m); break;
         case 'throw': this.h.onThrow?.(m); break;
         case 'hit': this.h.onHit?.(m); break;
+        case 'pile': this.h.onPile?.(m); break;
       }
     };
     ws.onclose = () => {
