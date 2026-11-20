@@ -12,6 +12,8 @@ import { Imprints, landedCheck } from './imprints.js';
 import { addTrees, setTreeFocus } from './trees.js';
 import { SnowPiles, pickReach } from './snowpiles.js';
 import { Campfire, FIRE_BLOCK_R } from './campfire.js';
+import { Snowman, SNOWMAN_BLOCK_R, SNOWMAN_CHANNELS } from './snowman.js';
+import { addStat, setUnlockHandler } from './eggs.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
@@ -143,6 +145,7 @@ const footprints = new Footprints(scene);
 const imprints = new Imprints(scene, renderer); // 넘어진 자리에 남는 떼리앙 모양 자국
 const snowPiles = new SnowPiles(scene); // 바닥 눈무더기 (클릭하면 걸어가서 바로 눈덩이를 집음)
 const campfire = new Campfire(scene); // 큰 숲 한가운데 모닥불 (큰 숲에서만 보임)
+let snowman = null; // 채널 1 한가운데 포떼링 눈사람 (모델 불러오기 아래에서 만듦)
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
 const outer = new THREE.Mesh(
@@ -336,6 +339,9 @@ function pickSpawn() {
 // ─────────────────────────────────────────────
 const fbxLoader = new FBXLoader();
 const gltfLoader = new GLTFLoader();
+snowman = new Snowman(scene, gltfLoader, GLB_SCALE);
+// 히든 떼리앙이 새로 열렸을 때 (어느 떼리앙인지는 아직 미정: js/eggs.js 의 HIDDEN)
+setUnlockHandler((key) => { track('hidden_unlock', { which: key }); });
 // ─────────────────────────────────────────────
 // 채널마다 맵: 홀수 채널 = 숲 (지금 크기, 50명), 짝수 채널 = 큰 숲 (넓이 2배, 100명)
 // 두 맵 모두 맵 밖에 눈나무. 주소 끝에 ?ch=2 를 붙이면 그 채널로 시작 (혼자 하기 모드에서도 그 맵)
@@ -350,6 +356,8 @@ let currentMap = null;
 const treeSets = {}; // 맵마다 나무 한 벌 (처음 들어갈 때 만들고, 다른 맵에선 숨김)
 function applyMap(ch) {
   const key = mapOf(ch);
+  snowman?.setVisible(SNOWMAN_CHANNELS.includes(ch)); // 눈사람은 맵이 아니라 채널마다 (채널 1에만)
+  clampToWorld(player.position);
   if (key === currentMap) return;
   currentMap = key;
   const map = MAPS[key];
@@ -931,6 +939,7 @@ function throwNow() {
   const velocity = solveThrow(handWorld, target);
   snowballs.throwBall({ from: handWorld, velocity, size: state.ballSize });
   count('throws');
+  addStat('throws'); // 이스터 에그용 누적 던진 수 (js/eggs.js)
   net?.send({ t: 'throw', fx: handWorld.x, fy: handWorld.y, fz: handWorld.z, vx: velocity.x, vy: velocity.y, vz: velocity.z });
   if (state.ball2) { state.ball2 = false; handBall2.visible = false; } // 치떼링: 왼손 것 먼저, 오른손 것은 남음
   else { state.hasBall = false; handBall.visible = false; }
@@ -1040,6 +1049,7 @@ function clampToWorld(v) {
   if (d > max) { v.x *= max / d; v.z *= max / d; }
   v.y = 0;
   campfire.pushOut(v); // 큰 숲 모닥불 안으로는 못 들어감
+  snowman?.pushOut(v); // 채널 1 눈사람도 뚫고 못 지나감
   return v;
 }
 
@@ -1154,12 +1164,13 @@ function updatePlayer(dt) {
   if (moving) {
     const len = Math.min(move.length(), 1);
     const dir = move.clone().normalize();
-    // 모닥불에 막히면: 클릭으로 가는 중엔 불 둘레를 따라 돌아가고, 방향키면 불 쪽으로만 안 움직임
-    if (campfire.active) {
+    // 모닥불·눈사람(둘 다 맵 한가운데)에 막히면: 클릭으로 가는 중엔 둘레를 따라 돌아가고, 방향키면 그쪽으로만 안 움직임
+    const blockR = campfire.active ? FIRE_BLOCK_R : snowman?.active ? SNOWMAN_BLOCK_R : 0;
+    if (blockR) {
       const step = moveSpeed() * len * dt;
       const nx = player.position.x + dir.x * step, nz = player.position.z + dir.z * step;
       const d = Math.hypot(player.position.x, player.position.z);
-      if (Math.hypot(nx, nz) < FIRE_BLOCK_R + 0.02 && d > 1e-4) {
+      if (Math.hypot(nx, nz) < blockR + 0.02 && d > 1e-4) {
         const ux = player.position.x / d, uz = player.position.z / d; // 불 바깥쪽 방향
         const inward = dir.x * ux + dir.z * uz;
         if (inward < 0) {
@@ -1206,6 +1217,10 @@ function checkSnowballHits() {
   const now = performance.now();
   snowballs.hitTest((ball, pos) => {
     if (campfire.hitsBall(pos)) return true; // 모닥불에 닿으면 부서짐
+    if (snowman?.hitsBall(pos)) { // 눈사람에 맞으면 부서짐. 겉모습은 그대로, 내가 맞힌 횟수만 셈
+      if (ball.owner === 'me') { addStat('snowmanHits'); count('snowman_hits'); }
+      return true;
+    }
     // 내가 맞음 (내 공은 제외)
     if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position, state.dims, ball)) {
       tryKnockDown(fallDirFor(ball.velocity, state.yaw));
