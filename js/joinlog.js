@@ -25,7 +25,42 @@ export class JoinLog {
     close.addEventListener('click', () => this.setOpen(false));
     // 창 안을 눌러도 게임(이동·눈 모으기)에 전달되지 않게
     for (const ev of ['pointerdown', 'pointerup', 'wheel', 'touchstart']) panel.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+    this.setupScrollbar(panel.querySelector('.log-track'));
     this.render();
+  }
+
+  // 오른쪽 스크롤바 (직접 그린 것): 위치 표시 + 끌거나 눌러서 이동
+  setupScrollbar(track) {
+    if (!track) return;
+    const thumb = track.firstElementChild, list = this.list;
+    this.updateBar = () => {
+      const ratio = list.clientHeight / Math.max(1, list.scrollHeight);
+      track.style.visibility = ratio >= 1 ? 'hidden' : '';
+      const h = Math.max(24, track.clientHeight * ratio);
+      const max = list.scrollHeight - list.clientHeight;
+      thumb.style.height = `${h}px`;
+      thumb.style.transform = `translateY(${max > 0 ? (list.scrollTop / max) * (track.clientHeight - h) : 0}px)`;
+    };
+    list.addEventListener('scroll', this.updateBar, { passive: true });
+    window.addEventListener('resize', this.updateBar);
+    const scrollTo = (clientY, grabOffset) => {
+      const r = track.getBoundingClientRect(), h = thumb.offsetHeight;
+      const t = Math.min(1, Math.max(0, (clientY - r.top - grabOffset) / Math.max(1, r.height - h)));
+      list.scrollTop = t * (list.scrollHeight - list.clientHeight);
+    };
+    track.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const tr = thumb.getBoundingClientRect();
+      const grab = e.target === thumb ? e.clientY - tr.top : thumb.offsetHeight / 2;
+      scrollTo(e.clientY, grab);
+      track.classList.add('dragging');
+      track.setPointerCapture(e.pointerId);
+      const move = (ev) => scrollTo(ev.clientY, grab);
+      const up = () => { track.classList.remove('dragging'); track.removeEventListener('pointermove', move); track.removeEventListener('pointerup', up); track.removeEventListener('pointercancel', up); };
+      track.addEventListener('pointermove', move);
+      track.addEventListener('pointerup', up);
+      track.addEventListener('pointercancel', up);
+    });
   }
 
   get isOpen() { return !this.panel.classList.contains('hidden'); }
@@ -101,6 +136,7 @@ export class JoinLog {
       d.className = 'log-empty';
       d.textContent = this.online || this.ch ? '아직 기록이 없어요.' : '혼자 하기 모드예요. 온라인으로 접속하면 기록이 남아요.';
       this.list.appendChild(d);
+      this.updateBar?.();
       return;
     }
     const me = this.myName();
@@ -119,5 +155,6 @@ export class JoinLog {
       this.list.appendChild(row);
     }
     if (atBottom || !this.scrolled) { this.list.scrollTop = this.list.scrollHeight; this.scrolled = true; }
+    this.updateBar?.();
   }
 }

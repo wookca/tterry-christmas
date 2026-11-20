@@ -243,9 +243,14 @@ html, body {
 }
 .log-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
 .log-x { border: 0; background: none; font-size: 22px; line-height: 1; color: #aab6c3; cursor: pointer; padding: 0 2px; }
-.log-list { max-height: min(46vh, 360px); overflow-y: auto; font-size: 13px; line-height: 1.45; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent; -webkit-user-select: text; user-select: text; }
-.log-row { display: flex; gap: 8px; padding: 3px 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
-.log-row:first-child { border-top: 0; }
+.log-body { position: relative; }
+.log-list { max-height: min(46vh, 360px); overflow-y: auto; margin-right: 14px; font-size: 13px; line-height: 1.45; scrollbar-width: none; -webkit-user-select: text; user-select: text; }
+.log-list::-webkit-scrollbar { display: none; }
+/* 오른쪽 스크롤바: 직접 그림 (폰처럼 기본 스크롤바가 숨는 곳에서도 항상 보이게) */
+.log-track { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); touch-action: none; cursor: pointer; }
+.log-thumb { position: absolute; left: 0; right: 0; top: 0; min-height: 24px; border-radius: 3px; background: rgba(255, 255, 255, 0.5); }
+.log-track.dragging .log-thumb, .log-thumb:hover { background: rgba(255, 255, 255, 0.75); }
+.log-row { display: flex; gap: 8px; padding: 1px 0; }
 .log-time { flex: 0 0 auto; color: #8d9bab; font-variant-numeric: tabular-nums; }
 .log-msg { min-width: 0; overflow-wrap: anywhere; }
 .log-msg b { font-weight: 800; color: #fff; }
