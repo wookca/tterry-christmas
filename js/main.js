@@ -603,7 +603,7 @@ let guideOn = true;
 try { guideOn = localStorage.getItem('guideOn2') !== '0'; } catch {} // 키 이름을 바꿔서 예전에 닫았던 사람도 한 번 다시 보이게
 function applyGuide() {
   $('guide').classList.toggle('hidden', !guideOn || !state.playing);
-  $('guideBtn').classList.toggle('off', !guideOn); // 가이드가 닫혀 있으면 아이콘을 흐리게
+  $('guideBtn').classList.toggle('off', guideOn); // 가이드가 열려 있으면 i를 흐리게, 닫혀 있으면 또렷하게 (눌러서 열 수 있다는 표시)
   $('guideBtn').title = guideOn ? '조작 방법 닫기' : '조작 방법 보기';
 }
 function setGuide(on) {
