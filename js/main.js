@@ -12,6 +12,7 @@ import { Imprints, landedCheck } from './imprints.js';
 import { addTrees, setTreeFocus } from './trees.js';
 import { SnowPiles, PICK_REACH } from './snowpiles.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
+import { track, count, setContext, setPlaying } from './analytics.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -540,6 +541,8 @@ async function pickVariant(ch, variantId) {
 
 function openSelect() {
   state.playing = false;
+  setPlaying(false);
+  if (player.visible) track('character_change_open');
   state.target = null;
   state.keys.clear();
   endAction(true);
@@ -563,6 +566,9 @@ async function startGame() {
     console.info(`[${ch.name}] 모델 애니메이션 ${model.userData.clips.length}개 발견`);
   }
 
+  const code = charCode(ch, state.variant);
+  setContext({ character: ch.id, character_variant: code });
+  track(player.visible ? 'character_change' : 'game_start', { character: ch.id, character_variant: code, mode: state.online ? 'online' : 'solo' });
   if (!player.visible) {
     // 첫 입장: 외곽 랜덤 위치에서 중심을 바라보며 등장
     player.position.copy(state.spawn);
@@ -586,6 +592,7 @@ async function startGame() {
   $('select').classList.add('hidden');
   $('hud').classList.remove('hidden');
   state.playing = true;
+  setPlaying(true);
   applyGuide();
 }
 
@@ -604,7 +611,7 @@ function setGuide(on) {
   try { localStorage.setItem('guideOn2', on ? '1' : '0'); } catch {}
   applyGuide();
 }
-$('guideBtn').addEventListener('click', () => setGuide(!guideOn));
+$('guideBtn').addEventListener('click', () => { setGuide(!guideOn); track('guide_toggle', { on: guideOn ? 'on' : 'off' }); });
 // 소리 켜기/끄기 (다음에 와도 기억)
 function applySoundBtn() {
   const on = isSoundOn();
@@ -612,7 +619,7 @@ function applySoundBtn() {
   $('soundBtn').title = on ? '소리 끄기' : '소리 켜기';
   $('soundBtn').setAttribute('aria-label', $('soundBtn').title);
 }
-$('soundBtn').addEventListener('click', () => { setSoundOn(!isSoundOn()); applySoundBtn(); });
+$('soundBtn').addEventListener('click', () => { setSoundOn(!isSoundOn()); applySoundBtn(); track('sound_toggle', { on: isSoundOn() ? 'on' : 'off' }); });
 applySoundBtn();
 $('guideClose').addEventListener('click', () => setGuide(false));
 $('changeBtn').addEventListener('click', openSelect);
@@ -793,6 +800,7 @@ function arriveAtPile() {
   player.rotation.y = state.yaw;
   finishGather();
   playPackDone();
+  count('pile_pickups');
 }
 function finishGather() {
   state.wantGather = false;
@@ -830,6 +838,7 @@ function throwNow() {
   const target = landingPoint(new THREE.Vector3());
   const velocity = solveThrow(handWorld, target);
   snowballs.throwBall({ from: handWorld, velocity });
+  count('throws');
   net?.send({ t: 'throw', fx: handWorld.x, fy: handWorld.y, fz: handWorld.z, vx: velocity.x, vy: velocity.y, vz: velocity.z });
   state.hasBall = false;
   state.aiming = false;
@@ -1079,6 +1088,7 @@ function checkSnowballHits() {
     // 다른 사람이 맞음: 눈덩이가 부서지고, 내가 던진 공이면 맞은 사람에게 알려줌 (그 사람이 쓰러짐)
     for (const r of remotes.map.values()) {
       if (String(r.id) === ball.owner || !hitsBody(pos, r.root.position)) continue;
+      if (ball.owner === 'me') count('hits_given');
       if (ball.owner === 'me') net?.send({ t: 'hit', id: r.id, d: fallDirFor(ball.velocity, r.yaw) > 0 ? 1 : 2 });
       return true;
     }
@@ -1094,6 +1104,7 @@ function tryKnockDown(dir) {
   knockDown(dir);
 }
 function knockDown(dir) {
+  count('times_hit');
   endAction(true);
   state.target = null;
   state.down = { dir, until: performance.now() + MIN_DOWN_TIME }; // 최소 0.5초는 강제로 누워 있음
@@ -1334,6 +1345,7 @@ async function openChannels() {
     b.addEventListener('click', () => {
       panel.classList.add('hidden');
       if (me || !net) return;
+      track('channel_switch', { channel: c.ch, map: mapOf(c.ch) });
       remotes.clear();
       applyMap(c.ch);
       net.switchTo(c.ch);
@@ -1342,7 +1354,7 @@ async function openChannels() {
     list.appendChild(b);
   }
 }
-$('online').addEventListener('click', openChannels);
+$('online').addEventListener('click', () => { openChannels(); track('channel_list_open'); });
 $('channelClose').addEventListener('click', () => $('channelPanel').classList.add('hidden'));
 $('channelPanel').addEventListener('click', (e) => { if (e.target === $('channelPanel')) $('channelPanel').classList.add('hidden'); });
 
@@ -1351,6 +1363,7 @@ function myCharCode() {
   const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS.find((c) => c.ready);
   return charCode(ch, state.variant);
 }
+let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
   if (net) {
@@ -1365,6 +1378,9 @@ function connectOnline(ch) {
       remotes.clear();
       applyMap(net.ch); // 꽉 차서 다른 채널로 넘어갔을 수도 있으니 맵 다시 맞춤
       m.players.forEach((p) => remotes.add(p));
+      setContext({ channel: net.ch, map: mapOf(net.ch) });
+      if (joinedCh !== net.ch) track('channel_join', { channel: net.ch, map: mapOf(net.ch), players: m.players.length + 1 }); // 재접속은 빼고
+      joinedCh = net.ch;
       if (m.name) { $('hudName').textContent = `${ch.name} · ${m.name}`; myLabel.textContent = m.name; }
       lastSent = null;
       updateOnlineHud();
