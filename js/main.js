@@ -1280,7 +1280,7 @@ function checkSnowballHits() {
   snowballs.hitTest((ball, pos) => {
     if (campfire.hitsBall(pos)) return true; // 모닥불에 닿으면 부서짐
     if (snowman?.hitsBall(pos)) { // 눈사람에 맞으면 부서짐. 겉모습은 그대로, 내가 맞힌 횟수만 셈
-      if (ball.owner === 'me') { addStat('snowmanHits'); count('snowman_hits'); }
+      if (ball.owner === 'me') { addStat('snowmanHits'); addStat('hits'); count('snowman_hits'); }
       return true;
     }
     // 내가 맞음 (내 공은 제외)
@@ -1291,7 +1291,7 @@ function checkSnowballHits() {
     // 다른 사람이 맞음: 눈덩이가 부서지고, 내가 던진 공이면 맞은 사람에게 알려줌 (그 사람이 쓰러짐)
     for (const r of remotes.map.values()) {
       if (String(r.id) === ball.owner || !hitsBody(pos, r.root.position, r.model?.userData.dims, ball)) continue;
-      if (ball.owner === 'me') count('hits_given');
+      if (ball.owner === 'me') { count('hits_given'); addStat('hits'); } // 지떼링 해금용 맞힌 수 (js/eggs.js)
       if (ball.owner === 'me') net?.send({ t: 'hit', id: r.id, d: fallDirFor(ball.velocity, r.yaw) > 0 ? 1 : 2 });
       return true;
     }
