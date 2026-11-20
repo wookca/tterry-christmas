@@ -15,6 +15,7 @@ const BODY_R = 0.57 * SIZE;          // 몸통 반지름 (모델 기준 약 0.57
 export const SNOWMAN_BLOCK_R = BODY_R + 0.45; // 떼리앙 발 위치가 이 안으로는 못 들어옴 (몸통 + 떼리앙 두께)
 const BALL_R = BODY_R + 0.08, BALL_H = 1.72 * SIZE; // 눈덩이가 맞는 범위 (원통)
 
+const SNOW_MAT = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 }); // 눈더미와 같은 재질
 let gltfPromise = null;
 
 export class Snowman {
@@ -29,6 +30,9 @@ export class Snowman {
       model.traverse((o) => {
         if (!o.isMesh) return;
         o.castShadow = true;
+        // 모델 재질(M_Snow)은 살짝 어두운 회색(0.86) + 푸른 발광이라 바닥 눈더미보다 회색으로 보였음
+        // → 눈더미(js/snowpiles.js)와 똑같은 흰 눈 재질로 바꿈 (2026-11-20 요청)
+        o.material = SNOW_MAT;
         o.receiveShadow = false;
       });
       enableOutline(model, SOFT_PART);

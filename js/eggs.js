@@ -12,10 +12,10 @@ export const HIDDEN = {
 };
 
 const KEY = 'tterryEggs';
-let data = { throws: 0, snowmanHits: 0, hits: null, unlocked: {}, revealed: {} };
+let data = { throws: 0, snowmanHits: 0, hits: null, unlocked: {}, revealed: {}, seen: {} };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-  if (saved && typeof saved === 'object') data = { ...data, ...saved, unlocked: { ...(saved.unlocked || {}) }, revealed: { ...(saved.revealed || {}) } };
+  if (saved && typeof saved === 'object') data = { ...data, ...saved, unlocked: { ...(saved.unlocked || {}) }, revealed: { ...(saved.revealed || {}) }, seen: { ...(saved.seen || {}) } };
 } catch {}
 if (data.hits == null) data.hits = data.snowmanHits || 0; // 예전 기록(눈사람만 셌던 것)은 맞힌 수에 넣어 줌
 function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {} }
@@ -48,4 +48,13 @@ export function pendingReveals() {
 export function markRevealed(charId) {
   for (const [k, h] of Object.entries(HIDDEN)) if (h.char === charId && data.unlocked[k]) data.revealed[k] = Date.now();
   save();
+}
+// 새로 열린 떼리앙: 선택창 카드에 빨간 점, 그 카드를 한 번 누르면 사라짐
+export function isNewChar(charId) {
+  return Object.entries(HIDDEN).some(([k, h]) => h.char === charId && data.unlocked[k] && !data.seen[k]);
+}
+export function markSeen(charId) {
+  let changed = false;
+  for (const [k, h] of Object.entries(HIDDEN)) if (h.char === charId && data.unlocked[k] && !data.seen[k]) { data.seen[k] = Date.now(); changed = true; }
+  if (changed) save();
 }

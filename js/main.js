@@ -13,7 +13,7 @@ import { addTrees, setTreeFocus } from './trees.js';
 import { SnowPiles, pickReach } from './snowpiles.js';
 import { Campfire, FIRE_BLOCK_R } from './campfire.js';
 import { Snowman, SNOWMAN_BLOCK_R, SNOWMAN_CHANNELS } from './snowman.js';
-import { addStat, setUnlockHandler, isLockedChar, pendingReveals, markRevealed } from './eggs.js';
+import { addStat, setUnlockHandler, isLockedChar, pendingReveals, markRevealed, isNewChar, markSeen } from './eggs.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
@@ -589,6 +589,7 @@ function buildCards() {
     // (방금 열렸는데 자물쇠 열리는 모습을 아직 못 봤으면 잠긴 모습으로 그려 두고 revealCards 에서 열어 줌)
     const locked = isLockedChar(ch.id) || pendingReveals().includes(ch.id);
     if (locked) b.classList.add('locked');
+    if (isNewChar(ch.id)) b.classList.add('new'); // 새로 열린 떼리앙: 오른쪽 위 빨간 점 (한 번 누르면 사라짐)
     b.innerHTML = `
       <div class="thumb">${ch.thumb ? `<div class="art" style="background-image:url(${ch.thumb})"></div>` : '?'}${locked ? LOCK_SVG : ''}</div>
       <div class="name">${locked ? '???' : charName(ch, defaultVariant(ch))}</div>`;
@@ -598,6 +599,7 @@ function buildCards() {
         b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
         return;
       }
+      if (b.classList.contains('new')) { b.classList.remove('new'); markSeen(ch.id); }
       if (ch.variants && state.selectedId === ch.id) {
         const i = ch.variants.findIndex((v) => v.id === state.variant);
         pickVariant(ch, ch.variants[(i + 1) % ch.variants.length].id);
@@ -610,8 +612,7 @@ function buildCards() {
 // 자물쇠 그림 (고리 shackle 는 열릴 때 위로 올라가며 돌아감)
 const LOCK_SVG = `<svg class="lock" viewBox="0 0 24 24" aria-hidden="true">
   <path class="shackle" d="M8 11 V8 a4 4 0 0 1 8 0 V11"/>
-  <rect class="body" x="5.5" y="10.5" width="13" height="10" rx="2.2"/>
-  <circle class="hole" cx="12" cy="15.3" r="1.4"/></svg>`;
+  <rect class="body" x="5.5" y="10.5" width="13" height="10" rx="2.2"/></svg>`;
 
 // 선택창이 열릴 때: 새로 열린 히든 떼리앙 카드는 자물쇠가 열리고 실루엣에 색이 돌아옴
 function revealCards() {
