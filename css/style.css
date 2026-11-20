@@ -85,8 +85,7 @@ html, body {
 .hud-svg { width: 22px; height: 22px; fill: none; stroke: #23303d; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .hud-svg .spk { fill: #23303d; }
 .hud-svg .dot { fill: #23303d; stroke: none; }
-.hud-svg .sil { fill: #23303d; stroke: none; }
-.hud-svg .arr { stroke: #d6343a; stroke-width: 2; }
+.hud-svg .card { fill: #ffd34d; stroke: #23303d; }
 .hud-icon .snd-off { display: none; }
 .hud-icon.muted .snd-on { display: none; }
 .hud-icon.muted .snd-off { display: inline; stroke: #d6343a; }
