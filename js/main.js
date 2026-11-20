@@ -179,19 +179,26 @@ for (let i = 0; i < SNOW_COUNT; i++) {
   snowPos[i * 3 + 2] = (Math.random() - 0.5) * SNOW_AREA;
 }
 snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+// 눈송이 그림은 숫자로 직접 만듦 (캔버스로 그리면 일부 브라우저의 '캔버스 차단' 기능 때문에 검은 눈이 내림, 2026-11-20)
 function snowflakeTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.38, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.6, 'rgba(175,195,225,0.55)'); // 가장자리: 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게): 옅은 푸른 그늘 → 흰 배경에서도 보임
-  grad.addColorStop(1, 'rgba(175,195,225,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 64, 64);
-  const t = new THREE.CanvasTexture(c);
+  const N = 64, data = new Uint8Array(N * N * 4);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const d = Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) / (N / 2); // 0 = 가운데, 1 = 가장자리
+    let r = 255, g = 255, b = 255, a = 1;
+    if (d >= 1) a = 0;
+    else if (d > 0.6) { const t = (d - 0.6) / 0.4; r = 175; g = 195; b = 225; a = lerp(0.55, 0, t); }
+    else if (d > 0.38) { const t = (d - 0.38) / 0.22; r = lerp(255, 175, t); g = lerp(255, 195, t); b = lerp(255, 225, t); a = lerp(1, 0.55, t); }
+    // 가장자리: 옅은 푸른 그늘 → 흰 배경에서도 보임. 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게)
+    const i = (y * N + x) * 4;
+    data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = Math.round(a * 255);
+  }
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.needsUpdate = true;
   return t;
 }
 const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({
