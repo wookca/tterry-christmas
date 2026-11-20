@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { enableOutline } from './outline.js';
+import { enableOutline, SOFT_PART, HIDE_PART } from './outline.js';
 
 // ─────────────────────────────────────────────
 // 모닥불: 큰 숲(짝수 채널) 맵 한가운데 (0, 0)
@@ -68,14 +68,14 @@ export class Campfire {
       stone.position.set(Math.cos(a) * STONE_R, s * 0.35, Math.sin(a) * STONE_R);
       stone.rotation.set(rand() * 0.6, -a + rand(), rand() * 0.4);
       stone.castShadow = true;
-      enableOutline(stone, 210 + (i % 2)); // 옆 돌끼리 번호를 달리해 사이에 선
+      enableOutline(stone, SOFT_PART); // 환경물: 검은 선 대신 눈더미처럼 연한 회색 선
       this.group.add(stone);
       if (i % 3 === 0) { // 몇 개는 위에 눈이 살짝 쌓임
         const cap = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2), capMat);
         cap.scale.set(s * 0.95, s * 0.32, s * 0.8);
         cap.position.set(stone.position.x, s * 0.35 + s * 0.55, stone.position.z);
         cap.rotation.y = -a;
-        enableOutline(cap, 212);
+        enableOutline(cap, SOFT_PART);
         this.group.add(cap);
       }
     }
@@ -94,7 +94,7 @@ export class Campfire {
       log.rotation.y = -a + Math.PI / 2;
       log.rotation.x = -lean;
       log.castShadow = true;
-      enableOutline(log, 214 + (i % 3));
+      enableOutline(log, SOFT_PART);
       this.group.add(log);
     }
     for (let i = 0; i < 2; i++) {
@@ -103,17 +103,16 @@ export class Campfire {
       log.rotation.y = i ? 1.9 : 0.35;
       log.position.y = 0.085;
       log.castShadow = true;
-      enableOutline(log, 217 + i);
+      enableOutline(log, SOFT_PART);
       this.group.add(log);
     }
 
     // 불꽃 3겹 (바깥 빨강 → 주황 → 안쪽 노랑). 빛을 받지 않는 재질이라 그늘 없이 늘 밝음
     // 만화처럼 안쪽 겹이 바깥 겹 위에 비쳐 보이도록: 바깥 겹부터 차례로 그리고, 바깥 겹은 깊이를 남기지 않음
-    // (외곽선은 바깥 빨간 불꽃 둘레에만 생김)
     const layers = [
-      { color: 0xf0442a, h: 1.45, r: 0.42, n: 4, spread: 0.15, id: 220 },
-      { color: 0xff9a1f, h: 1.0, r: 0.3, n: 3, spread: 0.09, id: 221 },
-      { color: 0xffe14d, h: 0.58, r: 0.18, n: 2, spread: 0.05, id: 222 },
+      { color: 0xf0442a, h: 1.45, r: 0.42, n: 4, spread: 0.15 },
+      { color: 0xff9a1f, h: 1.0, r: 0.3, n: 3, spread: 0.09 },
+      { color: 0xffe14d, h: 0.58, r: 0.18, n: 2, spread: 0.05 },
     ];
     this.flames = [];
     layers.forEach((L, li) => {
@@ -125,7 +124,7 @@ export class Campfire {
         f.position.set(Math.cos(a) * d, 0.12, Math.sin(a) * d);
         f.rotation.y = rand() * Math.PI;
         f.renderOrder = 2 + li;
-        enableOutline(f, L.id);
+        enableOutline(f, HIDE_PART); // 불꽃은 선 없음 (뒤 장작 선만 가려 줌)
         this.group.add(f);
         this.flames.push({ mesh: f, base: f.position.clone(), ph: rand() * 10, sp: 7 + rand() * 4, lean: i === 0 ? 0.05 : 0.18 });
       }
