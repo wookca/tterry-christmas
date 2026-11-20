@@ -16,6 +16,7 @@ import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
 import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
+import { JoinLog } from './joinlog.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -52,11 +53,10 @@ const CHARACTERS = [
   { id: 'longchi', name: '롱치떼링', file: 'models/longchi.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   { id: 'ppyeo', name: '뼈떼링', ready: false },
   { id: 'sof', name: '솦떼링', file: 'models/sof.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  // 지떼링: 몸이 커서 눈덩이가 크고 맞히는 범위가 넓음, 대신 느림 (js/abilities.js)
-  { id: 'ji', name: '지떼링', file: 'models/ji.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
-  { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
+  // 선택창 순서: PC(7개씩 두 줄)에서 치떼링은 맨 오른쪽 위, 지떼링은 맨 오른쪽 아래 (2026-11-20 요청)
   // 치떼링: 눈을 모으면 양손에 하나씩 눈덩이 2개, 대신 느림 (js/abilities.js)
   { id: 'chi', name: '치떼링', file: 'models/chi.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
+  { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'ko', name: '코떼링', file: 'models/ko.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   // 토네이도 4종: 몸은 하나, 머리 위 토핑 그림만 바꿈 (카드를 누를 때마다 다음 맛으로)
   { id: 'tornado', name: '초코떼링', file: 'models/tornado.glb', ready: true, outline: true, unitScale: GLB_SCALE,
@@ -80,6 +80,8 @@ const CHARACTERS = [
   { id: 'ham', name: '햄떼링', ready: false },
   { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'wheel', name: '휠떼링', file: 'models/wheel.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
+  // 지떼링: 몸이 커서 눈덩이가 크고 맞히는 범위가 넓음, 대신 느림 (js/abilities.js)
+  { id: 'ji', name: '지떼링', file: 'models/ji.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
 ];
 
 // ─────────────────────────────────────────────
@@ -1012,6 +1014,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   const k = KEYMAP[e.code];
+  if (k && !state.playing && e.code.startsWith('Arrow') && moveCardSelection(k, e)) return; // 선택창: 방향키만 (WASD는 닉네임 입력용)
   if (!k || !state.playing) return;
   e.preventDefault();
   if (!e.repeat) getUpIfDown();
@@ -1477,6 +1480,8 @@ function myCharCode() {
   const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS.find((c) => c.ready);
   return charCode(ch, state.variant);
 }
+// 채널 기록 창 (왼쪽 위 버튼)
+const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $('logList'), title: $('logTitle'), close: $('logClose'), myName: () => myLabel.textContent });
 let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
@@ -1497,11 +1502,17 @@ function connectOnline(ch) {
       if (joinedCh !== net.ch) track('channel_join', { channel: net.ch, map: mapOf(net.ch), players: m.players.length + 1 }); // 재접속은 빼고
       joinedCh = net.ch;
       if (m.name) { $('hudName').textContent = `${ch.name} · ${m.name}`; myLabel.textContent = m.name; }
+      joinLog.welcome(net.ch, m.log, m.now, m.name || myName());
       lastSent = null;
       updateOnlineHud();
     },
-    onJoin: (p) => { remotes.add(p); updateOnlineHud(); },
-    onLeave: (id) => { remotes.remove(id); updateOnlineHud(); },
+    onJoin: (p, re) => { joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p); updateOnlineHud(); },
+    onLeave: (id) => {
+      const name = remotes.nameOf(id);
+      remotes.remove(id);
+      joinLog.leave(name, !!name && remotes.hasName(name));
+      updateOnlineHud();
+    },
     onState: (m) => remotes.update(m),
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onPile: (m) => snowPiles.apply(m),
@@ -1596,3 +1607,70 @@ async function init() {
   window.__game = { state, player, camera, CHARACTERS, snowballs, remotes, get net() { return net; } };
 }
 init();
+
+// 선택창 카드: 마우스 휠(위아래)을 굴리면 옆으로 넘김 → 숨어 있던 맨 오른쪽 열(치떼링·지떼링)이 보임
+$('cards').addEventListener('wheel', (e) => {
+  const el = e.currentTarget;
+  if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  el.scrollBy({ left: e.deltaY > 0 ? 99 : -99 });
+}, { passive: false });
+// 선택창 카드: 마우스로 끌어도 옆으로 넘어감 (조금이라도 끌었으면 그 클릭은 카드 고르기로 치지 않음)
+{
+  const el = $('cards');
+  let drag = null;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || el.scrollWidth <= el.clientWidth + 1) return;
+    drag = { x: e.clientX, left: el.scrollLeft, moved: false };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) > 5) {
+      drag.moved = true;
+      el.style.scrollSnapType = 'none'; el.style.scrollBehavior = 'auto'; // 끄는 동안은 손을 바로 따라오게
+      el.style.cursor = 'grabbing';
+    }
+    if (drag.moved) el.scrollLeft = drag.left - dx;
+  });
+  window.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    if (!moved) return;
+    el.style.cursor = '';
+    el.style.scrollBehavior = ''; el.style.scrollSnapType = ''; // 놓으면 가까운 칸에 딱 맞춰짐
+    const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+    el.addEventListener('click', stop, true); // 끌고 난 직후의 클릭 한 번만 막음
+    setTimeout(() => el.removeEventListener('click', stop, true), 0);
+  });
+}
+
+// 선택창이 열려 있을 때 방향키(WASD는 아님): 선택된 카드를 그 방향 옆 카드로 바꿈 (닉네임 입력 중에는 글자 입력 그대로)
+// 화면에 놓인 위치로 찾아서 PC(7칸씩 두 줄)·폰(옆으로 넘기는 두 줄) 모두 같은 방향으로 움직임
+function moveCardSelection(dir, e) {
+  if ($('select').classList.contains('hidden')) return false;
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return false;
+  e.preventDefault();
+  const cards = [...document.querySelectorAll('.card:not(:disabled)')];
+  const cur = cards.find((c) => c.dataset.id === state.selectedId) || cards[0];
+  if (!cur) return true;
+  const r0 = cur.getBoundingClientRect();
+  const cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+  let best = null, bestD = Infinity;
+  for (const c of cards) {
+    if (c === cur) continue;
+    const r = c.getBoundingClientRect();
+    const dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy;
+    const horiz = dir === 'left' || dir === 'right';
+    const ok = horiz ? Math.abs(dy) < r0.height / 2 && (dir === 'right' ? dx > 4 : dx < -4)
+      : Math.abs(dx) < r0.width / 2 && (dir === 'down' ? dy > 4 : dy < -4);
+    const d = horiz ? Math.abs(dx) : Math.abs(dy);
+    if (ok && d < bestD) { best = c; bestD = d; }
+  }
+  if (!best) return true; // 끝이면 그대로
+  selectCard(best.dataset.id);
+  best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); // 숨은 칸이면 옆으로 넘어가며 보임
+  return true;
+}

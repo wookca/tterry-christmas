@@ -52,7 +52,7 @@ export class RemotePlayers {
     this.labels.appendChild(label);
 
     const r = {
-      id: p.id, char: p.char, root, body, ball, ball2, label,
+      id: p.id, name: p.name || '', char: p.char, root, body, ball, ball2, label,
       target: new THREE.Vector3(p.x, 0, p.z), yaw: p.yaw || 0, targetYaw: p.yaw || 0,
       m: !!p.m, g: !!p.g, b: p.b || 0, a: !!p.a, d: p.d || 0,
       anim: { walk: 0, phase: Math.random() * 6, crouch: 0, throwT: 1, dropT: 0 },
@@ -100,6 +100,8 @@ export class RemotePlayers {
   }
 
   charOf(id) { return this.map.get(id)?.char; }
+  nameOf(id) { return this.map.get(id)?.name; }
+  hasName(name) { for (const r of this.map.values()) if (r.name === name) return true; return false; }
 
   // 던진 위치를 그 사람 손 위치에 맞추고 싶을 때
   handPosition(id, out) {
