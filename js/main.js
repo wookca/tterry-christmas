@@ -179,31 +179,26 @@ for (let i = 0; i < SNOW_COUNT; i++) {
   snowPos[i * 3 + 2] = (Math.random() - 0.5) * SNOW_AREA;
 }
 snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
-// 눈송이 그림은 숫자로 직접 만듦 (캔버스로 그리면 일부 브라우저의 '캔버스 차단' 기능 때문에 검은 눈이 내림, 2026-11-20)
-function snowflakeTexture() {
-  const N = 64, data = new Uint8Array(N * N * 4);
-  const lerp = (a, b, t) => a + (b - a) * t;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const d = Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) / (N / 2); // 0 = 가운데, 1 = 가장자리
-    let r = 255, g = 255, b = 255, a = 1;
-    if (d >= 1) a = 0;
-    else if (d > 0.6) { const t = (d - 0.6) / 0.4; r = 175; g = 195; b = 225; a = lerp(0.55, 0, t); }
-    else if (d > 0.38) { const t = (d - 0.38) / 0.22; r = lerp(255, 175, t); g = lerp(255, 195, t); b = lerp(255, 225, t); a = lerp(1, 0.55, t); }
-    // 가장자리: 옅은 푸른 그늘 → 흰 배경에서도 보임. 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게)
-    const i = (y * N + x) * 4;
-    data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = Math.round(a * 255);
-  }
-  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.magFilter = THREE.LinearFilter;
-  t.minFilter = THREE.LinearMipmapLinearFilter;
-  t.generateMipmaps = true;
-  t.needsUpdate = true;
-  return t;
-}
-const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({
-  map: snowflakeTexture(), size: 0.28, transparent: true, opacity: 0.95, depthWrite: false, alphaTest: 0.02,
-}));
+// 눈송이는 그림(텍스처) 없이 그래픽카드가 점 안에서 직접 동그라미를 계산해서 그림
+// (2026-11-20: 일부 컴퓨터에서 눈이 검게 보임 → 캔버스·텍스처 둘 다 안 쓰는 방식으로 바꿈)
+// 가운데 흰색, 가장자리는 옅은 푸른 그늘 rgb(175,195,225)로 번짐 → 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게)
+const snowMat = new THREE.PointsMaterial({
+  color: 0xffffff, size: 0.28, transparent: true, opacity: 0.95, depthWrite: false, alphaTest: 0.02,
+});
+snowMat.onBeforeCompile = (sh) => {
+  sh.fragmentShader = sh.fragmentShader.replace('#include <map_particle_fragment>', `
+    float flakeD = length(gl_PointCoord - vec2(0.5)) * 2.0; // 0 = 가운데, 1 = 가장자리
+    vec3 flakeEdge = vec3(0.4287, 0.5457, 0.7529);          // rgb(175,195,225)를 계산용 값으로 바꾼 것
+    vec3 flakeC = vec3(1.0);
+    float flakeA = 1.0;
+    if (flakeD >= 1.0) { flakeA = 0.0; }
+    else if (flakeD > 0.6) { flakeC = flakeEdge; flakeA = mix(0.55, 0.0, (flakeD - 0.6) / 0.4); }
+    else if (flakeD > 0.38) { float k = (flakeD - 0.38) / 0.22; flakeC = mix(vec3(1.0), flakeEdge, k); flakeA = mix(1.0, 0.55, k); }
+    diffuseColor.rgb *= flakeC;
+    diffuseColor.a *= flakeA;
+  `);
+};
+const snow = new THREE.Points(snowGeo, snowMat);
 snow.frustumCulled = false;
 scene.add(snow);
 
