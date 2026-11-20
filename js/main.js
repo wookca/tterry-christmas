@@ -51,11 +51,10 @@ const CHARACTERS = [
   { id: 'longchi', name: '롱치떼링', file: 'models/longchi.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   { id: 'ppyeo', name: '뼈떼링', ready: false },
   { id: 'sof', name: '솦떼링', file: 'models/sof.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  // 지떼링: 몸이 커서 눈덩이가 크고 맞히는 범위가 넓음, 대신 느림 (js/abilities.js)
-  { id: 'ji', name: '지떼링', file: 'models/ji.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
-  { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
+  // 선택창 순서: PC(7개씩 두 줄)에서 치떼링은 맨 오른쪽 위, 지떼링은 맨 오른쪽 아래 (2026-11-20 요청)
   // 치떼링: 눈을 모으면 양손에 하나씩 눈덩이 2개, 대신 느림 (js/abilities.js)
   { id: 'chi', name: '치떼링', file: 'models/chi.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
+  { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'ko', name: '코떼링', file: 'models/ko.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   // 토네이도 4종: 몸은 하나, 머리 위 토핑 그림만 바꿈 (카드를 누를 때마다 다음 맛으로)
   { id: 'tornado', name: '초코떼링', file: 'models/tornado.glb', ready: true, outline: true, unitScale: GLB_SCALE,
@@ -79,6 +78,8 @@ const CHARACTERS = [
   { id: 'ham', name: '햄떼링', ready: false },
   { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   { id: 'wheel', name: '휠떼링', file: 'models/wheel.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
+  // 지떼링: 몸이 커서 눈덩이가 크고 맞히는 범위가 넓음, 대신 느림 (js/abilities.js)
+  { id: 'ji', name: '지떼링', file: 'models/ji.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
 ];
 
 // ─────────────────────────────────────────────
