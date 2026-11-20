@@ -122,7 +122,6 @@ export class JoinLog {
     e.at ||= Date.now();
     this.entries.push(e);
     if (this.entries.length > MAX) this.entries.splice(0, this.entries.length - MAX);
-    if (!this.isOpen) this.btn.classList.add('unread');
     this.render();
   }
 

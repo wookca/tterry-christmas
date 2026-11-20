@@ -2,19 +2,19 @@
 // 이스터 에그: 내 컴퓨터(브라우저)에 횟수를 저장해 두고, 조건을 채우면 히든 떼리앙이 열림
 // - 눈덩이를 10개 이상 던지면 → 히든 떼리앙 1
 // - 포떼링 눈사람을 10번 맞히면 → 히든 떼리앙 2
-// 어느 떼리앙이 열리는지는 아직 안 정함: HIDDEN 의 char 에 떼리앙 id를 넣으면 됨
+// 열리기 전에는 선택창에서 회색 실루엣 + 자물쇠, 고를 수 없음 (2026-11-20 요청)
 // 저장 위치: localStorage (같은 브라우저에서는 창을 닫았다 열어도 유지)
 // ─────────────────────────────────────────────
 export const HIDDEN = {
-  hidden1: { stat: 'throws', need: 10, char: null },      // 던진 눈덩이 수
-  hidden2: { stat: 'snowmanHits', need: 10, char: null }, // 눈사람을 맞힌 수
+  hidden1: { stat: 'throws', need: 10, char: 'chi' },      // 던진 눈덩이 수 → 치떼링
+  hidden2: { stat: 'snowmanHits', need: 10, char: 'ji' },  // 포떼링 눈사람을 맞힌 수 → 지떼링
 };
 
 const KEY = 'tterryEggs';
-let data = { throws: 0, snowmanHits: 0, unlocked: {} };
+let data = { throws: 0, snowmanHits: 0, unlocked: {}, revealed: {} };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-  if (saved && typeof saved === 'object') data = { ...data, ...saved, unlocked: { ...(saved.unlocked || {}) } };
+  if (saved && typeof saved === 'object') data = { ...data, ...saved, unlocked: { ...(saved.unlocked || {}) }, revealed: { ...(saved.revealed || {}) } };
 } catch {}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {} }
 
@@ -35,7 +35,15 @@ export function addStat(stat) {
 
 export function getStat(stat) { return data[stat] || 0; }
 export function isUnlocked(key) { return !!data.unlocked[key]; }
-// 열린 히든 떼리앙의 id 목록 (char 가 정해진 것만)
-export function unlockedChars() {
-  return Object.entries(HIDDEN).filter(([k, h]) => h.char && data.unlocked[k]).map(([, h]) => h.char);
+// 이 떼리앙이 아직 잠겨 있으면 true
+export function isLockedChar(charId) {
+  return Object.entries(HIDDEN).some(([k, h]) => h.char === charId && !data.unlocked[k]);
+}
+// 열렸지만 아직 선택창에서 자물쇠가 열리는 모습을 안 보여준 떼리앙 id 목록
+export function pendingReveals() {
+  return Object.entries(HIDDEN).filter(([k, h]) => data.unlocked[k] && !data.revealed[k]).map(([, h]) => h.char);
+}
+export function markRevealed(charId) {
+  for (const [k, h] of Object.entries(HIDDEN)) if (h.char === charId && data.unlocked[k]) data.revealed[k] = Date.now();
+  save();
 }
