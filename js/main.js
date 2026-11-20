@@ -1011,6 +1011,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   const k = KEYMAP[e.code];
+  if (k && !state.playing && moveCardSelection(k, e)) return;
   if (!k || !state.playing) return;
   e.preventDefault();
   if (!e.repeat) getUpIfDown();
@@ -1619,4 +1620,33 @@ $('cards').addEventListener('wheel', (e) => {
     el.addEventListener('click', stop, true); // 끌고 난 직후의 클릭 한 번만 막음
     setTimeout(() => el.removeEventListener('click', stop, true), 0);
   });
+}
+
+// 선택창이 열려 있을 때 방향키·WASD: 선택된 카드를 그 방향 옆 카드로 바꿈 (닉네임 입력 중에는 글자 입력 그대로)
+// 화면에 놓인 위치로 찾아서 PC(7칸씩 두 줄)·폰(옆으로 넘기는 두 줄) 모두 같은 방향으로 움직임
+function moveCardSelection(dir, e) {
+  if ($('select').classList.contains('hidden')) return false;
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return false;
+  e.preventDefault();
+  const cards = [...document.querySelectorAll('.card:not(:disabled)')];
+  const cur = cards.find((c) => c.dataset.id === state.selectedId) || cards[0];
+  if (!cur) return true;
+  const r0 = cur.getBoundingClientRect();
+  const cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+  let best = null, bestD = Infinity;
+  for (const c of cards) {
+    if (c === cur) continue;
+    const r = c.getBoundingClientRect();
+    const dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy;
+    const horiz = dir === 'left' || dir === 'right';
+    const ok = horiz ? Math.abs(dy) < r0.height / 2 && (dir === 'right' ? dx > 4 : dx < -4)
+      : Math.abs(dx) < r0.width / 2 && (dir === 'down' ? dy > 4 : dy < -4);
+    const d = horiz ? Math.abs(dx) : Math.abs(dy);
+    if (ok && d < bestD) { best = c; bestD = d; }
+  }
+  if (!best) return true; // 끝이면 그대로
+  selectCard(best.dataset.id);
+  best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); // 숨은 칸이면 옆으로 넘어가며 보임
+  return true;
 }
