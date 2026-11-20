@@ -38,13 +38,13 @@ export class Snowman {
         o.material = SNOW_MAT;
         o.receiveShadow = false;
       });
-      // 연한 선: 바깥 테두리 + 머리 장식·코·눈 둘레 (2026-11-20 요청). 입·팔은 몸과 같은 부위로 묶어 선 없음
+      // 연한 선: 바깥 테두리 + 머리 장식·코·눈·팔(감자튀김) 둘레 (2026-11-20 요청). 입은 머리와 같은 부위로 묶어 선 없음
       // 모델 조각: 1 머리 장식, 2 머리, 3·5 눈, 4 입, 6 코, 7 몸통, 8~9 팔
       model.traverse((o) => {
         if (!o.isMesh) return;
         labelParts(o);
         const ids = o.geometry.attributes.partId.array;
-        for (let i = 0; i < ids.length; i++) ids[i] = SOFT_PART + (ids[i] === 1 ? 1 : ids[i] === 6 ? 2 : (ids[i] === 3 || ids[i] === 5) ? 3 : 0);
+        for (let i = 0; i < ids.length; i++) ids[i] = SOFT_PART + (ids[i] === 1 ? 1 : ids[i] === 6 ? 2 : (ids[i] === 3 || ids[i] === 5) ? 3 : (ids[i] === 8 || ids[i] === 9) ? 4 : 0);
       });
       enableOutline(model, SOFT_PART);
       this.group.add(model);
