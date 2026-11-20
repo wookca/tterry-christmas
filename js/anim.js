@@ -37,7 +37,7 @@ export function animateBody(body, st, dt, moving, gathering) {
     const k = Math.sin(st.throwT * Math.PI);
     const side = st.throwSide === -1 ? -1 : 1;
     body.rotation.x += k * 0.4;
-    body.rotation.y = -k * 0.5 * side;
+    body.rotation.y = k * 0.5 * side; // 던지는 손 쪽 어깨가 앞으로 나옴
   } else {
     body.rotation.y = 0;
   }
