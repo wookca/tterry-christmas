@@ -167,7 +167,7 @@ function setWorldRadius(r) {
 
 // 내리는 눈: 카메라 주변 상자 안에서 떨어지고, 바닥에 닿으면 위로 다시 (개수만큼만 계속 돌려 씀)
 // 흰 바닥·하늘에 묻히지 않게 송이 가장자리를 살짝 푸른 회색으로 (눈 그림자 색 계열)
-const SNOW_COUNT = 2400;   // 송이 수 (예전 900)
+const SNOW_COUNT = 1200;   // 송이 수 (2026-11-20 절반으로 줄임)
 const SNOW_AREA = 44;      // 카메라 주변 가로·세로 범위
 const SNOW_TOP = 18;       // 떨어지기 시작하는 높이
 const snowGeo = new THREE.BufferGeometry();
