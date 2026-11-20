@@ -21,7 +21,8 @@ export function rng(seed) {
 // avoid: [{x, z}] 사람 위치 등 (바로 발밑에서 자라지 않게)
 export function placePile(piles, radius, rand, avoid = []) {
   for (let tries = 0; tries < 60; tries++) {
-    const r = 3 + Math.sqrt(rand()) * Math.max(1, radius - 5.5);
+    const minR = radius > 35 ? 5 : 3; // 큰 숲은 가운데 모닥불(눈 녹은 곳) 바깥에만
+    const r = minR + Math.sqrt(rand()) * Math.max(1, radius - 2.5 - minR);
     const a = rand() * Math.PI * 2;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (piles.some((p) => p.up && (p.x - x) ** 2 + (p.z - z) ** 2 < PILE_GAP * PILE_GAP)) continue;

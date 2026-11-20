@@ -145,6 +145,7 @@ const footprints = new Footprints(scene);
 const imprints = new Imprints(scene, renderer); // 넘어진 자리에 남는 떼리앙 모양 자국
 const snowPiles = new SnowPiles(scene); // 바닥 눈무더기 (클릭하면 걸어가서 바로 눈덩이를 집음)
 const campfire = new Campfire(scene); // 큰 숲 한가운데 모닥불 (큰 숲에서만 보임)
+snowPiles.blocked = (p) => campfire.inMeltZone(p, 0.8);
 let snowman = null; // 채널 1 한가운데 포떼링 눈사람 (모델 불러오기 아래에서 만듦)
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
@@ -386,9 +387,9 @@ function applyMap(ch) {
   setWorldRadius(map.radius);
   // 눈무더기: 혼자 하기면 내 컴퓨터가 놓고, 온라인이면 서버 목록이 올 때까지 비워 둠
   // (예전엔 임시로 놓았다가 1초 뒤 서버 목록으로 바뀌어서 맵이 다시 그려지는 것처럼 보였음)
+  campfire.setVisible(key === 'big'); // 눈무더기보다 먼저 (모닥불 둘레엔 더미를 안 놓음)
   if (state.online) snowPiles.clear();
   else startLocalPiles();
-  campfire.setVisible(key === 'big');
   clampToWorld(player.position);
   if (!treeSets[key]) {
     treeSets[key] = addTrees(scene, gltfLoader, GLB_SCALE, map.radius)

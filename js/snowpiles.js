@@ -91,6 +91,7 @@ export class SnowPiles {
   }
 
   add(p, grow) {
+    if (this.blocked?.(p)) return; // 모닥불 둘레 눈 녹은 곳에 놓인 더미(옛 서버 목록)는 안 보이게
     const old = this.items.get(p.id);
     if (old) this.group.remove(old.mesh);
     const mesh = new THREE.Mesh(GEOS[(p.v || 0) % GEOS.length], pileMat);

@@ -12,7 +12,9 @@ const FLAME_LAYER = 3; // 불꽃만 따로 그리는 층: 외곽선을 다 그�
 const SIZE = 1.35;                // 모닥불 전체 크기 배율
 export const FIRE_BLOCK_R = 1.6;  // 떼리앙 발 위치가 이 반지름 안으로는 못 들어옴 (돌 테두리 + 몸 두께)
 const STONE_R = 0.82;             // 돌 테두리 반지름
-export const MELT_R = 2.5;        // 이 안(눈 녹은 땅)에서는 손에 든 눈덩이가 녹고, 눈을 모을 수 없음
+const DIRT_R = 2.45;              // 눈이 녹아 땅이 드러난 곳 반지름
+const SLUSH_W = 1.2;              // 그 바깥 녹다 만 회색 눈 띠 폭 (2026-11-20 3배로 넓힘)
+export const MELT_R = DIRT_R + SLUSH_W; // 이 안(땅 + 녹다 만 눈)에서는 손에 든 눈덩이가 녹고, 눈을 모을 수 없음
 const BALL_BLOCK_R = 0.95 * SIZE, BALL_BLOCK_H = 1.3 * SIZE; // 눈덩이가 부서지는 불 크기
 
 function rng(seed) {
@@ -166,8 +168,8 @@ export class Campfire {
 
     // 눈 녹은 땅: 겨울의 차가운 회색빛 언 땅 + 가장자리는 녹다 만 회색 눈 (둘 다 울퉁불퉁한 모양, 선 없음)
     const flat = (color, offset) => new THREE.MeshStandardMaterial({ color, roughness: 1, polygonOffset: true, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
-    const slush = new THREE.Mesh(blobGeometry(MELT_R + 0.35, 0.22, 77), flat(0xd5dde6, -1));
-    const dirt = new THREE.Mesh(blobGeometry(MELT_R - 0.05, 0.28, 31), flat(0xd6c6ae, -2));
+    const slush = new THREE.Mesh(blobGeometry(MELT_R, 0.16, 77), flat(0xd5dde6, -1));
+    const dirt = new THREE.Mesh(blobGeometry(DIRT_R, 0.28, 31), flat(0xd6c6ae, -2));
     for (const [m, y] of [[slush, 0.001], [dirt, 0.002]]) {
       m.scale.setScalar(1 / SIZE);   // 모양은 실제 크기(m)로 만들었으니 모닥불 배율을 되돌림
       m.position.y = y / SIZE;
@@ -268,8 +270,8 @@ export class Campfire {
   }
 
   // 눈 녹은 땅 위인지 (손에 든 눈덩이가 녹고, 눈을 모을 수 없음)
-  inMeltZone(v) {
-    return this.group.visible && Math.hypot(v.x, v.z) < MELT_R;
+  inMeltZone(v, extra = 0) {
+    return this.group.visible && Math.hypot(v.x, v.z) < MELT_R + extra;
   }
 
   // 눈덩이가 불에 닿았는지
