@@ -9,7 +9,7 @@ const MAX = 200;
 const pad = (n) => String(n).padStart(2, '0');
 function timeText(at) {
   const d = new Date(at), now = new Date();
-  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return d.toDateString() === now.toDateString() ? t : `${d.getMonth() + 1}/${d.getDate()} ${t}`;
 }
 
@@ -148,7 +148,7 @@ export class JoinLog {
       t.textContent = timeText(e.at);
       const msg = document.createElement('span');
       msg.className = 'log-msg';
-      if (e.k === 'rename') msg.append(b(e.o), ' → ', b(e.n), ' 닉네임 변경');
+      if (e.k === 'rename') { const ar = document.createElement('span'); ar.className = 'log-arrow'; ar.textContent = ' → '; msg.append(b(e.o), ar, b(e.n)); }
       else msg.append(b(e.n), e.k === 'join' ? ' 들어옴' : ' 나감');
       row.append(t, msg);
       this.list.appendChild(row);
