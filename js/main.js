@@ -15,6 +15,7 @@ import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
 import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
+import { JoinLog } from './joinlog.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -1454,6 +1455,8 @@ function myCharCode() {
   const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS.find((c) => c.ready);
   return charCode(ch, state.variant);
 }
+// 채널 기록 창 (왼쪽 위 버튼)
+const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $('logList'), title: $('logTitle'), close: $('logClose'), myName: () => myLabel.textContent });
 let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
@@ -1474,11 +1477,17 @@ function connectOnline(ch) {
       if (joinedCh !== net.ch) track('channel_join', { channel: net.ch, map: mapOf(net.ch), players: m.players.length + 1 }); // 재접속은 빼고
       joinedCh = net.ch;
       if (m.name) { $('hudName').textContent = `${ch.name} · ${m.name}`; myLabel.textContent = m.name; }
+      joinLog.welcome(net.ch, m.log, m.now, m.name || myName());
       lastSent = null;
       updateOnlineHud();
     },
-    onJoin: (p) => { remotes.add(p); updateOnlineHud(); },
-    onLeave: (id) => { remotes.remove(id); updateOnlineHud(); },
+    onJoin: (p, re) => { joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p); updateOnlineHud(); },
+    onLeave: (id) => {
+      const name = remotes.nameOf(id);
+      remotes.remove(id);
+      joinLog.leave(name, !!name && remotes.hasName(name));
+      updateOnlineHud();
+    },
     onState: (m) => remotes.update(m),
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onPile: (m) => snowPiles.apply(m),

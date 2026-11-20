@@ -46,7 +46,9 @@ export class Net {
     const ws = new WebSocket(`${base}/ws?ch=${this.ch}`);
     this.ws = ws;
     this.h.onStatus?.(`채널 ${this.ch} 접속 중…`);
-    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', ...this.hello() }));
+    // re: 이 채널에 바로 전에 쓰던 닉네임 (떼리앙·닉네임 바꾸기나 잠깐 끊겨서 다시 접속할 때) → 서버 기록에서 "나감+들어옴" 대신 "닉네임 변경"으로
+    const re = this.lastCh === this.ch ? this.lastName : null;
+    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', ...this.hello(), ...(re ? { re } : {}) }));
     ws.onmessage = (e) => {
       let m;
       try { m = JSON.parse(e.data); } catch { return; }
@@ -57,13 +59,14 @@ export class Net {
           clearInterval(this.pinger);
           this.pinger = setInterval(() => { if (this.ws === ws && this.connected) ws.send('{"t":"ping"}'); }, 5000);
           if (m.ch) this.ch = m.ch;
+          this.lastCh = this.ch; this.lastName = m.name;
           this.h.onWelcome?.(m);
           this.h.onStatus?.(null);
           break;
         case 'full':
           this.ch += 2; this.retry = 0; // 같은 맵의 다음 채널로 (홀수 = 눈밭, 짝수 = 숲)
           break; // 서버가 곧 끊음 → onclose에서 다음 채널로
-        case 'join': this.h.onJoin?.(m.p); break;
+        case 'join': this.h.onJoin?.(m.p, m.re); break;
         case 'leave': this.h.onLeave?.(m.id); break;
         case 'state': this.h.onState?.(m); break;
         case 'throw': this.h.onThrow?.(m); break;

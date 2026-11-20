@@ -20,6 +20,9 @@ const maxFor = (ch) => (ch % 2 === 0 ? 100 : MAX_PLAYERS);
 const radiusFor = (ch) => (ch % 2 === 0 ? 30 * Math.SQRT2 : 30);
 const STALE_MS = 70000;   // 이만큼 아무 신호가 없으면 끊긴 것으로 봄 (게임은 5초마다 ping, 숨긴 탭은 1분에 한 번까지 느려질 수 있어 넉넉히)
 const MAX_MSG = 1024;     // 메시지 최대 크기(바이트)
+const LOG_MAX = 100;      // 채널 기록(입장·닉네임 변경·퇴장) 최근 몇 개까지 들고 있을지
+const RE_WINDOW = 15000;  // 다시 접속(떼리앙·닉네임 바꾸기, 잠깐 끊김)으로 볼 시간: 나간 뒤 이 안에 돌아오면 퇴장 기록을 지움
+const cleanName = (v) => String(v || '').replace(/[<>&"'`]/g, '').trim().slice(0, 12);
 
 // 접속을 허용할 주소인지 확인 (다른 사이트에서 몰래 붙는 것 방지)
 function originAllowed(origin, env) {
@@ -48,7 +51,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 6, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 7, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -115,6 +118,7 @@ export class Channel extends DurableObject {
 
   drop(ws, a) {
     a.joined = false;
+    this.logLeave(a);
     try { ws.serializeAttachment(a); } catch { /* 닫힌 소켓 */ }
     try { ws.close(4000, 'timeout'); } catch { /* 이미 닫힘 */ }
     const s = JSON.stringify({ t: 'leave', id: a.id });
@@ -139,6 +143,46 @@ export class Channel extends DurableObject {
     const id = this.nextId++;
     server.serializeAttachment({ id, ch, joined: false, lastThrow: 0 });
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  // ── 채널 기록: 누가 언제 들어오고 닉네임을 바꾸고 나갔는지 (저장소에 저장 → 서버가 잠들었다 깨도 남음)
+  async ensureLog() {
+    if (this.log) return;
+    const saved = await this.ctx.storage.get('log');
+    this.log = Array.isArray(saved) ? saved : [];
+  }
+  addLog(e) {
+    if (!this.log) return;
+    e.at = Date.now();
+    this.log.push(e);
+    if (this.log.length > LOG_MAX) this.log.splice(0, this.log.length - LOG_MAX);
+    this.ctx.storage.put('log', this.log).catch(() => {});
+  }
+  // 나감: 같은 닉네임으로 이미 다시 들어와 있으면(끊긴 연결이 늦게 정리된 경우) 기록하지 않음
+  logLeave(a) {
+    if (!this.log || !a.name) return;
+    for (const ws of this.ctx.getWebSockets()) {
+      const o = ws.deserializeAttachment();
+      if (o && o.joined && o.id !== a.id && o.name === a.name) return;
+    }
+    this.addLog({ k: 'leave', n: a.name });
+  }
+  // 들어옴: re = 바로 전에 이 채널에서 쓰던 닉네임 (다시 접속한 경우에만 옴)
+  logJoin(p, re) {
+    if (!this.log) return;
+    const now = Date.now();
+    let back = false;
+    if (re) {
+      for (let i = this.log.length - 1; i >= 0; i--) {
+        const e = this.log[i];
+        if (now - e.at > RE_WINDOW) break;
+        if (e.k === 'leave' && e.n === re) { this.log.splice(i, 1); back = true; break; }
+      }
+      if (!back) back = this.players().some((o) => o.p.id !== p.id && o.p.name === re); // 옛 연결이 아직 안 정리됨
+    }
+    if (!back) this.addLog({ k: 'join', n: p.name });
+    else if (re !== p.name) this.addLog({ k: 'rename', o: re, n: p.name });
+    else this.ctx.storage.put('log', this.log).catch(() => {});
   }
 
   // ── 눈무더기: 채널마다 서버가 한 벌을 들고 있음 (저장소에도 저장 → 서버가 잠들었다 깨도 그대로)
@@ -184,6 +228,7 @@ export class Channel extends DurableObject {
     const now = Date.now();
     if (!p.seen || now - p.seen > 3000) { p.seen = now; try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ } }
     await this.ensurePiles(p.ch);
+    await this.ensureLog();
     this.growPiles(now);
 
     switch (msg.t) {
@@ -195,7 +240,8 @@ export class Channel extends DurableObject {
           return;
         }
         p.joined = true;
-        p.name = String(msg.name || '').replace(/[<>&"'`]/g, '').trim().slice(0, 12) || `눈사람${p.id}`;
+        p.name = cleanName(msg.name) || `눈사람${p.id}`;
+        const re = cleanName(msg.re);
         p.char = String(msg.char || 'potteling').replace(/[^a-z0-9_-]/gi, '').slice(0, 24);
         const R = radiusFor(p.ch);
         p.x = num(msg.x, -R, R);
@@ -203,9 +249,10 @@ export class Channel extends DurableObject {
         p.yaw = num(msg.yaw, -10, 10);
         p.m = 0; p.g = 0; p.b = 0; p.a = 0; p.d = 0;
         ws.serializeAttachment(p);
+        this.logJoin(p, re);
         const others = this.players().filter((o) => o.p.id !== p.id).map((o) => this.publicState(o.p));
-        ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: maxFor(p.ch), piles: this.piles.filter((q) => q.up).map(publicPile) }));
-        this.broadcast({ t: 'join', p: this.publicState(p) }, p.id);
+        ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: maxFor(p.ch), piles: this.piles.filter((q) => q.up).map(publicPile), log: this.log, now: Date.now() }));
+        this.broadcast({ t: 'join', p: this.publicState(p), re: re || undefined }, p.id);
         return;
       }
       case 'state': {
@@ -267,19 +314,21 @@ export class Channel extends DurableObject {
   }
 
   async webSocketClose(ws, code) {
-    this.leave(ws);
+    await this.leave(ws);
     try { ws.close(code, 'bye'); } catch { /* 이미 닫힘 */ }
   }
 
   async webSocketError(ws) {
-    this.leave(ws);
+    await this.leave(ws);
   }
 
-  leave(ws) {
+  async leave(ws) {
     const p = ws.deserializeAttachment();
     if (!p || !p.joined) return;
     p.joined = false;
     try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ }
+    await this.ensureLog();
+    this.logLeave(p);
     this.broadcast({ t: 'leave', id: p.id }, p.id);
   }
 }

@@ -230,3 +230,31 @@ html, body {
 /* 게임 이름 */
 .game-logo { font-size: 34px; font-weight: 900; color: #d6343a; letter-spacing: -0.5px; margin-bottom: 6px; }
 .game-title { font-size: 13px; font-weight: 800; color: #d6343a; letter-spacing: 0.5px; margin-bottom: 2px; }
+
+/* 채널 기록 창 (왼쪽 위 버튼으로 열기): 어두운 반투명 */
+.hud-icon.on { background: rgba(35, 48, 61, 0.8); }
+.hud-icon.on .hud-svg { stroke: #fff; }
+#logBtn { position: relative; }
+#logBtn.unread::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: #d6343a; box-shadow: 0 0 0 2px #fff; }
+.log-panel {
+  position: fixed; left: 12px; top: 60px; z-index: 12; width: 320px; max-width: calc(100% - 24px);
+  background: rgba(14, 20, 30, 0.72); color: #e9eef4; border-radius: 14px; padding: 10px 12px 8px;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.log-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.log-x { border: 0; background: none; font-size: 22px; line-height: 1; color: #aab6c3; cursor: pointer; padding: 0 2px; }
+.log-list { max-height: min(46vh, 360px); overflow-y: auto; font-size: 13px; line-height: 1.45; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent; -webkit-user-select: text; user-select: text; }
+.log-row { display: flex; gap: 8px; padding: 3px 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.log-row:first-child { border-top: 0; }
+.log-time { flex: 0 0 auto; color: #8d9bab; font-variant-numeric: tabular-nums; }
+.log-msg { min-width: 0; overflow-wrap: anywhere; }
+.log-msg b { font-weight: 800; color: #fff; }
+.log-msg b.mine { color: #ff8a8a; }
+.log-join .log-msg { color: #9fe3a8; }
+.log-rename .log-msg { color: #ffd77a; }
+.log-leave .log-msg { color: #aab6c3; }
+.log-empty { color: #aab6c3; font-size: 13px; padding: 6px 0 4px; }
+@media (max-width: 600px) {
+  .log-panel { left: 8px; top: 48px; width: 280px; padding: 8px 10px 6px; }
+  .log-list { font-size: 12px; }
+}
