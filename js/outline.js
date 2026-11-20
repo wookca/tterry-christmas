@@ -16,6 +16,7 @@ import * as THREE from 'three';
 export const OUTLINE_LAYER = 1;
 const DEPTH_RANGE = 80; // 깊이 저장 범위(월드 단위)
 export const FADE_NEAR = 35, FADE_FAR = 90; // 안개와 같은 거리: 멀리 있는 선도 안개처럼 옅어짐
+export const SOFT_PART = 202; // 이 부위 번호는 얇은 회색 선 (눈무더기)
 
 // 맵 밖 나무처럼 여러 개를 한 번에 그리는 물체(InstancedMesh)가
 // 카메라와 내 떼리앙 사이를 가리면 그 부분만 뚫어서 보이게 함 (나무 재질과 외곽선 그리기에 같이 씀)
@@ -84,6 +85,7 @@ const edgeMaterial = new THREE.ShaderMaterial({
     thickness: { value: 2 },
     depthThreshold: { value: 0.06 },
     color: { value: new THREE.Color(0x111111) },
+    softColor: { value: new THREE.Color(0x8d9db3) }, // 눈무더기 선: 환경과 어울리는 쿨톤 회색
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -94,11 +96,16 @@ const edgeMaterial = new THREE.ShaderMaterial({
     uniform float thickness;
     uniform float depthThreshold;
     uniform vec3 color;
+    uniform vec3 softColor;
     varying vec2 vUv;
     float depthOf(vec4 c) { return (c.g + c.b / 255.0) * ${DEPTH_RANGE.toFixed(1)}; }
-    float edgeAt(vec4 c, vec2 offset) {
+    // 부드러운 선 대상(눈무더기 등, 부위 번호 ${SOFT_PART}): 선을 절반 두께, 쿨톤 회색으로
+    bool soft(vec4 c) { return c.a > 0.5 && abs(c.r * 255.0 - ${SOFT_PART}.0) < 0.5; }
+    // 1: 선 있음. kind: 양쪽이 '부드러운 물체 또는 빈 바닥'뿐이면 부드러운 선(1), 아니면 보통 선(0)
+    float edgeAt(vec4 c, vec2 offset, out float kind) {
       vec4 n = texture2D(tId, vUv + offset);
       bool a = c.a > 0.5, b = n.a > 0.5;
+      kind = ((!a || soft(c)) && (!b || soft(n))) ? 1.0 : 0.0;
       if (a != b) return 1.0;                                  // 바깥 테두리
       if (!a) return 0.0;
       if (abs(n.r - c.r) > 0.5 / 255.0) return 1.0;            // 부위 경계
@@ -108,20 +115,24 @@ const edgeMaterial = new THREE.ShaderMaterial({
     }
     void main() {
       vec4 c = texture2D(tId, vUv);
-      float e = 0.0;
+      float e = 0.0, es = 0.0, k;
       float nearD = c.a > 0.5 ? depthOf(c) : 1e9;
       for (int i = 0; i < 8; i++) {
         float ang = float(i) * 0.785398;
         vec2 dir = vec2(cos(ang), sin(ang));
-        e += edgeAt(c, dir * texel * thickness);
-        e += edgeAt(c, dir * texel * thickness * 0.5);
+        float h;
+        h = edgeAt(c, dir * texel * thickness, k);        if (k < 0.5) e += h;
+        h = edgeAt(c, dir * texel * thickness * 0.5, k);  if (k < 0.5) e += h; else es += h;
+        h = edgeAt(c, dir * texel * thickness * 0.25, k); if (k > 0.5) es += h;
         vec4 n = texture2D(tId, vUv + dir * texel * thickness);
         if (n.a > 0.5) nearD = min(nearD, depthOf(n));
       }
-      float alpha = clamp(e / 3.0, 0.0, 1.0);
-      alpha *= 1.0 - smoothstep(${FADE_NEAR.toFixed(1)}, ${FADE_FAR.toFixed(1)}, nearD); // 멀수록 옅게 (안개처럼)
-      if (alpha <= 0.0) discard;
-      gl_FragColor = vec4(color, alpha);
+      float fade = 1.0 - smoothstep(${FADE_NEAR.toFixed(1)}, ${FADE_FAR.toFixed(1)}, nearD); // 멀수록 옅게 (안개처럼)
+      float alpha = clamp(e / 3.0, 0.0, 1.0) * fade;
+      if (alpha > 0.0) { gl_FragColor = vec4(color, alpha); return; }
+      float softA = clamp(es / 3.0, 0.0, 1.0) * fade;
+      if (softA <= 0.0) discard;
+      gl_FragColor = vec4(softColor, softA);
     }`,
   transparent: true,
   depthTest: false,

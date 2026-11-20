@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { enableOutline } from './outline.js';
+import { enableOutline, SOFT_PART } from './outline.js';
 
 // ─────────────────────────────────────────────
 // 바닥 눈무더기: 눈이 소복이 모여 있는 더미 (쌀 한 포대 정도 크기)
@@ -82,7 +82,7 @@ export class SnowPiles {
       mesh.rotation.y = rand() * Math.PI * 2;
       mesh.scale.setScalar(0.9 + rand() * 0.25);
       mesh.castShadow = true;
-      enableOutline(mesh, 202);
+      enableOutline(mesh, SOFT_PART); // 얇은 쿨톤 회색 선
       group.add(mesh);
       piles.push({ mesh, pos: mesh.position });
     }
