@@ -43,13 +43,22 @@ export class Footprints {
   }
 
   // pos: 몸 위치, yaw: 바라보는 방향, side: 1(왼발) / -1(오른발)
-  add(pos, yaw, side, scale = 1) {
+  // feet: 발이 여러 개인 떼리앙(치떼링)의 발 위치표 (abilities.js의 feet). 없으면 보통 두 발
+  add(pos, yaw, side, feet = null) {
+    if (feet) {
+      for (const x of feet[side]) this._put(pos, yaw, x);
+    } else {
+      this._put(pos, yaw, FOOT_GAP * side);
+    }
+  }
+
+  // 몸 가운데에서 옆으로 x(m) 떨어진 곳에 발자국 하나
+  _put(pos, yaw, x) {
     const i = this.next;
     this.next = (this.next + 1) % MAX_PRINTS;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw); // 몸 기준 오른쪽
-    this._p.set(pos.x + rx * FOOT_GAP * side * scale, 0.006, pos.z + rz * FOOT_GAP * side * scale);
+    this._p.set(pos.x + rx * x, 0.006, pos.z + rz * x);
     this._q.setFromAxisAngle(this._up, yaw);
-    this._s.setScalar(scale);
     this._m.compose(this._p, this._q, this._s);
     this.mesh.setMatrixAt(i, this._m);
     this.mesh.instanceMatrix.needsUpdate = true;
