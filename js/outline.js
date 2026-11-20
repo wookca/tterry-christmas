@@ -85,7 +85,7 @@ const edgeMaterial = new THREE.ShaderMaterial({
     thickness: { value: 2 },
     depthThreshold: { value: 0.06 },
     color: { value: new THREE.Color(0x111111) },
-    softColor: { value: new THREE.Color(0x8d9db3) }, // 눈무더기 선: 환경과 어울리는 쿨톤 회색
+    softColor: { value: new THREE.Color(0xb6c3d6) }, // 눈무더기 선: 환경과 어울리는 연한 쿨톤 회색 (2026-11-20 더 연하게)
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
