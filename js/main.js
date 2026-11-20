@@ -171,34 +171,58 @@ function setWorldRadius(r) {
 const SNOW_COUNT = 1200;   // 송이 수 (2026-11-20 절반으로 줄임)
 const SNOW_AREA = 44;      // 카메라 주변 가로·세로 범위
 const SNOW_TOP = 18;       // 떨어지기 시작하는 높이
-const snowGeo = new THREE.BufferGeometry();
 const snowPos = new Float32Array(SNOW_COUNT * 3);
 for (let i = 0; i < SNOW_COUNT; i++) {
   snowPos[i * 3] = (Math.random() - 0.5) * SNOW_AREA;
   snowPos[i * 3 + 1] = Math.random() * SNOW_TOP;
   snowPos[i * 3 + 2] = (Math.random() - 0.5) * SNOW_AREA;
 }
-snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
-// 눈송이는 그림(텍스처) 없이 그래픽카드가 점 안에서 직접 동그라미를 계산해서 그림
-// (2026-11-20: 일부 컴퓨터에서 눈이 검게 보임 → 캔버스·텍스처 둘 다 안 쓰는 방식으로 바꿈)
-// 가운데 흰색, 가장자리는 옅은 푸른 그늘 rgb(175,195,225)로 번짐 → 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게)
-const snowMat = new THREE.PointsMaterial({
-  color: 0xffffff, size: 0.28, transparent: true, opacity: 0.95, depthWrite: false, alphaTest: 0.02,
+// 눈송이 = 늘 카메라를 보는 작은 네모 판 (점(Points)으로 그리면 하드웨어 가속이 꺼진 컴퓨터에서 눈이 검게 보임, 2026-11-20)
+// 판 하나에 송이 하나, 1200개를 한 번에 그림 (InstancedBufferGeometry)
+// 판 안에서 그림(텍스처) 없이 동그라미를 계산: 가운데 흰색, 가장자리는 옅은 푸른 그늘 rgb(175,195,225)
+// → 화면에선 밝은 회색 #d1dbeb로 보임 (눈무더기 선 outline.js softColor와 같게)
+const SNOW_SIZE = 0.28 * Math.tan(THREE.MathUtils.degToRad(45 / 2)); // 예전 점 크기(0.28)와 같은 크기의 판 (세계 단위)
+const snowGeo = new THREE.InstancedBufferGeometry();
+snowGeo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
+snowGeo.setIndex([0, 1, 2, 0, 2, 3]);
+snowGeo.setAttribute('offset', new THREE.InstancedBufferAttribute(snowPos, 3));
+snowGeo.instanceCount = SNOW_COUNT;
+const snowMat = new THREE.ShaderMaterial({
+  uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uSize: { value: SNOW_SIZE }, uOpacity: { value: 0.95 } }]),
+  fog: true, transparent: true, depthWrite: false,
+  vertexShader: `
+    attribute vec3 offset;
+    uniform float uSize;
+    varying vec2 vUv;
+    #include <fog_pars_vertex>
+    void main() {
+      vUv = position.xy + 0.5;
+      vec4 mvPosition = viewMatrix * vec4(offset, 1.0);
+      mvPosition.xy += position.xy * uSize;   // 카메라 기준 위·옆으로 펼침 → 늘 정면
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+    }`,
+  fragmentShader: `
+    uniform float uOpacity;
+    varying vec2 vUv;
+    #include <common>
+    #include <fog_pars_fragment>
+    void main() {
+      float d = length(vUv - vec2(0.5)) * 2.0;          // 0 = 가운데, 1 = 가장자리
+      vec3 edge = vec3(0.4287, 0.5457, 0.7529);         // rgb(175,195,225)를 계산용 값으로 바꾼 것
+      vec3 c = vec3(1.0);
+      float a = 1.0;
+      if (d >= 1.0) { a = 0.0; }
+      else if (d > 0.6) { c = edge; a = mix(0.55, 0.0, (d - 0.6) / 0.4); }
+      else if (d > 0.38) { float k = (d - 0.38) / 0.22; c = mix(vec3(1.0), edge, k); a = mix(1.0, 0.55, k); }
+      if (a < 0.02) discard;
+      gl_FragColor = vec4(c, a * uOpacity);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      #include <fog_fragment>
+    }`,
 });
-snowMat.onBeforeCompile = (sh) => {
-  sh.fragmentShader = sh.fragmentShader.replace('#include <map_particle_fragment>', `
-    float flakeD = length(gl_PointCoord - vec2(0.5)) * 2.0; // 0 = 가운데, 1 = 가장자리
-    vec3 flakeEdge = vec3(0.4287, 0.5457, 0.7529);          // rgb(175,195,225)를 계산용 값으로 바꾼 것
-    vec3 flakeC = vec3(1.0);
-    float flakeA = 1.0;
-    if (flakeD >= 1.0) { flakeA = 0.0; }
-    else if (flakeD > 0.6) { flakeC = flakeEdge; flakeA = mix(0.55, 0.0, (flakeD - 0.6) / 0.4); }
-    else if (flakeD > 0.38) { float k = (flakeD - 0.38) / 0.22; flakeC = mix(vec3(1.0), flakeEdge, k); flakeA = mix(1.0, 0.55, k); }
-    diffuseColor.rgb *= flakeC;
-    diffuseColor.a *= flakeA;
-  `);
-};
-const snow = new THREE.Points(snowGeo, snowMat);
+const snow = new THREE.Mesh(snowGeo, snowMat);
 snow.frustumCulled = false;
 scene.add(snow);
 
@@ -1178,7 +1202,7 @@ function updateCamera(dt, time) {
 
 function updateEffects(dt, time) {
   // 눈 내리기 (카메라 주변에서 반복)
-  const p = snowGeo.attributes.position.array;
+  const p = snowPos;
   // 카메라와 내 떼리앙 사이(화면에 보이는 곳)를 중심으로 내림
   const cx = camera.position.x * 0.4 + lookAt.x * 0.6, cz = camera.position.z * 0.4 + lookAt.z * 0.6;
   for (let i = 0; i < SNOW_COUNT; i++) {
@@ -1195,7 +1219,7 @@ function updateEffects(dt, time) {
       p[ix + 2] = cz + (Math.random() - 0.5) * SNOW_AREA;
     }
   }
-  snowGeo.attributes.position.needsUpdate = true;
+  snowGeo.attributes.offset.needsUpdate = true;
 
   if (marker.material.opacity > 0) {
     marker.material.opacity = Math.max(0, marker.material.opacity - dt * (state.target ? 0.4 : 2.5));
