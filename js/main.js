@@ -1581,3 +1581,33 @@ $('cards').addEventListener('wheel', (e) => {
   e.preventDefault();
   el.scrollBy({ left: e.deltaY > 0 ? 99 : -99 });
 }, { passive: false });
+// 선택창 카드: 마우스로 끌어도 옆으로 넘어감 (조금이라도 끌었으면 그 클릭은 카드 고르기로 치지 않음)
+{
+  const el = $('cards');
+  let drag = null;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || el.scrollWidth <= el.clientWidth + 1) return;
+    drag = { x: e.clientX, left: el.scrollLeft, moved: false };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) > 5) {
+      drag.moved = true;
+      el.style.scrollSnapType = 'none'; el.style.scrollBehavior = 'auto'; // 끄는 동안은 손을 바로 따라오게
+      el.style.cursor = 'grabbing';
+    }
+    if (drag.moved) el.scrollLeft = drag.left - dx;
+  });
+  window.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    if (!moved) return;
+    el.style.cursor = '';
+    el.style.scrollBehavior = ''; el.style.scrollSnapType = ''; // 놓으면 가까운 칸에 딱 맞춰짐
+    const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+    el.addEventListener('click', stop, true); // 끌고 난 직후의 클릭 한 번만 막음
+    setTimeout(() => el.removeEventListener('click', stop, true), 0);
+  });
+}
