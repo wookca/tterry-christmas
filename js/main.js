@@ -1006,7 +1006,7 @@ function throwNow() {
   count('throws');
   addStat('throws'); // 이스터 에그용 누적 던진 수 (js/eggs.js)
   net?.send({ t: 'throw', fx: handWorld.x, fy: handWorld.y, fz: handWorld.z, vx: velocity.x, vy: velocity.y, vz: velocity.z });
-  state.throwSide = state.ball2 ? -1 : 1; // 치떼링 첫 번째는 왼손 모션, 두 번째(와 다른 떼리앙)는 오른손 모션
+  state.throwSide = state.ab.twoBalls && !state.ball2 ? -1 : 1; // 치떼링: 첫 번째(왼손)와 두 번째(오른손) 모션을 좌우 반대로. 다른 떼리앙은 그대로
   if (state.ball2) { state.ball2 = false; handBall2.visible = false; } // 치떼링: 왼손 것 먼저, 오른손 것은 남음
   else { state.hasBall = false; handBall.visible = false; }
   state.aiming = false;

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { animateBody } from './anim.js';
 import { makeBallMesh } from './snowball.js';
 import { enableOutline } from './outline.js';
-import { ballSizeOf } from './abilities.js';
+import { ballSizeOf, abilityOf } from './abilities.js';
 
 // ─────────────────────────────────────────────
 // 다른 플레이어들 (서버에서 받은 위치로 부드럽게 따라감)
@@ -83,7 +83,7 @@ export class RemotePlayers {
     const r = this.map.get(id);
     if (!r) return;
     r.anim.throwT = 0;
-    r.anim.throwSide = r.b === 2 ? -1 : 1; // 치떼링 첫 번째(왼손)는 좌우 반대 모션. 던지기는 상태보다 먼저 와서 r.b가 아직 2
+    r.anim.throwSide = abilityOf(r.char).twoBalls && r.b !== 2 ? -1 : 1; // 치떼링: 첫 번째(왼손)·두 번째(오른손) 모션 좌우 반대. 던지기는 상태보다 먼저 와서 r.b가 아직 2
     if (r.b === 2) { r.b = 1; r.ball2.visible = false; } // 왼손 것 먼저 던짐
     else { r.b = 0; r.ball.visible = false; }
   }
