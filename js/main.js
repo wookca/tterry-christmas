@@ -10,6 +10,7 @@ import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js
 import { Footprints, stepCheck } from './footprints.js';
 import { Imprints, landedCheck } from './imprints.js';
 import { addTrees, setTreeFocus } from './trees.js';
+import { SnowPiles, PICK_REACH } from './snowpiles.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 
 // ─────────────────────────────────────────────
@@ -132,6 +133,7 @@ shadowCatcher.receiveShadow = true;
 scene.add(shadowCatcher);
 const footprints = new Footprints(scene);
 const imprints = new Imprints(scene, renderer); // 넘어진 자리에 남는 떼리앙 모양 자국
+const snowPiles = new SnowPiles(scene); // 바닥 눈무더기 (클릭하면 걸어가서 바로 눈덩이를 집음)
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
 const outer = new THREE.Mesh(
@@ -293,6 +295,7 @@ function applyMap(ch) {
   currentMap = key;
   const map = MAPS[key];
   setWorldRadius(map.radius);
+  snowPiles.show(key, map.radius, key === 'big' ? 20 : 12); // 큰 맵은 넓은 만큼 더 많이
   clampToWorld(player.position);
   if (!treeSets[key]) {
     treeSets[key] = addTrees(scene, gltfLoader, GLB_SCALE, map.radius)
@@ -664,6 +667,11 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType === 'mouse' || pointers.has(e.pointerId)) { cursor.x = e.clientX; cursor.y = e.clientY; cursor.has = true; }
+  // 마우스를 눈무더기 위에 올리면 손가락 커서 (누를 수 있다는 표시)
+  if (e.pointerType === 'mouse' && state.playing && !pointers.size) {
+    ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    canvas.style.cursor = snowPiles.pick(ndc, camera) ? 'pointer' : '';
+  }
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   const dx = e.clientX - prev.x;
@@ -712,6 +720,24 @@ function groundPointAt(x, y) {
 }
 
 function moveTo(x, y) {
+  // 눈무더기를 눌렀으면: 그 앞까지 걸어가서 도착하면 바로 눈덩이 집기
+  ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  const pile = snowPiles.pick(ndc, camera);
+  if (pile) {
+    const away = tmpPile.set(player.position.x - pile.pos.x, 0, player.position.z - pile.pos.z);
+    if (away.lengthSq() < 1e-4) away.set(0, 0, 1);
+    away.normalize().multiplyScalar(PICK_REACH);
+    state.target = new THREE.Vector3(pile.pos.x + away.x, 0, pile.pos.z + away.z);
+    clampToWorld(state.target);
+    state.pilePick = pile;
+    marker.material.color.set(0x3a8ee6);
+    marker.position.set(pile.pos.x, 0.02, pile.pos.z);
+    marker.material.opacity = 1;
+    marker.scale.setScalar(2.2);
+    if (Math.hypot(state.target.x - player.position.x, state.target.z - player.position.z) < 0.08) arriveAtPile();
+    return;
+  }
+  state.pilePick = null;
   const hit = groundPointAt(x, y);
   if (!hit) return;
   clampToWorld(hit);
@@ -755,6 +781,18 @@ function cancelGather() {
   state.gathering = false;
   state.gather = 0;
   $('ring').classList.add('hidden');
+}
+const tmpPile = new THREE.Vector3();
+// 눈무더기 앞에 도착: 모으는 동작·시간 없이 바로 눈덩이를 손에
+function arriveAtPile() {
+  const pile = state.pilePick;
+  state.pilePick = null;
+  if (!pile || state.hasBall || !state.playing || state.down) return;
+  if (Math.hypot(pile.pos.x - player.position.x, pile.pos.z - player.position.z) > PICK_REACH + 0.4) return;
+  state.yaw = Math.atan2(pile.pos.x - player.position.x, pile.pos.z - player.position.z); // 더미 쪽을 보고
+  player.rotation.y = state.yaw;
+  finishGather();
+  playPackDone();
 }
 function finishGather() {
   state.wantGather = false;
@@ -881,6 +919,7 @@ window.addEventListener('keydown', (e) => {
   if (!e.repeat) getUpIfDown();
   state.keys.add(k);
   state.target = null; // 키보드를 쓰면 클릭 목적지는 취소
+  state.pilePick = null;
 });
 window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') {
@@ -988,6 +1027,7 @@ function updatePlayer(dt) {
       const dist = tmp.length();
       if (dist < 0.08) {
         state.target = null;
+        if (state.pilePick) arriveAtPile();
       } else {
         move.copy(tmp).divideScalar(dist);
         if (dist < MOVE_SPEED * dt) move.multiplyScalar(dist / (MOVE_SPEED * dt));
