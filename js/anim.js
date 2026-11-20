@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────
 // 몸 움직임 (내 캐릭터 / 다른 플레이어 공통)
 // 모델에 애니메이션이 없어서 코드로 만든 걸음·웅크리기·던지기 모션
-// st: { walk, phase, crouch, throwT, dropT } 를 가진 상태 객체
+// st: { walk, phase, crouch, throwT, throwSide, dropT } 를 가진 상태 객체
 // ─────────────────────────────────────────────
 export function animateBody(body, st, dt, moving, gathering) {
   // ── 걷기 모션 (모델에 애니메이션이 없어서 코드로 만든 걸음) ──
@@ -31,12 +31,13 @@ export function animateBody(body, st, dt, moving, gathering) {
     body.rotation.z += Math.sin(t) * 0.06 * c;
   }
 
-  // 던지기: 앞으로 휙
+  // 던지기: 앞으로 휙. throwSide 1: 오른손(모델 -X 쪽), -1: 왼손(모델 +X 쪽) → 몸 비틀기를 좌우 반대로
   if (st.throwT < 1) {
     st.throwT = Math.min(1, st.throwT + dt / 0.35);
     const k = Math.sin(st.throwT * Math.PI);
+    const side = st.throwSide === -1 ? -1 : 1;
     body.rotation.x += k * 0.4;
-    body.rotation.y = -k * 0.5;
+    body.rotation.y = -k * 0.5 * side;
   } else {
     body.rotation.y = 0;
   }

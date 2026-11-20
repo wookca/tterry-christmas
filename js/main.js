@@ -287,6 +287,7 @@ const state = {
   power: 0,                // 던지기 파워 0~1
   hasBall: false,          // 손에 눈덩이를 들고 있음
   throwT: 1,               // 던지기 모션 0~1
+  throwSide: 1,            // 던지는 손 (1: 오른손, -1: 왼손)
 };
 
 // 손에 든 눈덩이 (캐릭터 오른손 위치)
@@ -1005,6 +1006,7 @@ function throwNow() {
   count('throws');
   addStat('throws'); // 이스터 에그용 누적 던진 수 (js/eggs.js)
   net?.send({ t: 'throw', fx: handWorld.x, fy: handWorld.y, fz: handWorld.z, vx: velocity.x, vy: velocity.y, vz: velocity.z });
+  state.throwSide = state.ball2 ? -1 : 1; // 치떼링 첫 번째는 왼손 모션, 두 번째(와 다른 떼리앙)는 오른손 모션
   if (state.ball2) { state.ball2 = false; handBall2.visible = false; } // 치떼링: 왼손 것 먼저, 오른손 것은 남음
   else { state.hasBall = false; handBall.visible = false; }
   state.aiming = false;
