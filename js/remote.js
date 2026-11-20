@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { animateBody } from './anim.js';
 import { makeBallMesh } from './snowball.js';
 import { enableOutline } from './outline.js';
+import { ballSizeOf } from './abilities.js';
 
 // ─────────────────────────────────────────────
 // 다른 플레이어들 (서버에서 받은 위치로 부드럽게 따라감)
@@ -30,11 +31,19 @@ export class RemotePlayers {
     root.add(body);
     root.position.set(p.x, 0, p.z);
     root.rotation.y = p.yaw || 0;
+    const size = ballSizeOf(p.char); // 지떼링은 눈덩이가 큼
     const ball = makeBallMesh();
     ball.position.set(-0.47, 0.34, 0.1);
+    ball.scale.setScalar(size);
     ball.visible = !!p.b;
     body.add(ball);
     enableOutline(ball, 200);
+    const ball2 = makeBallMesh(); // 왼손 (치떼링: 눈덩이 2개일 때)
+    ball2.position.set(0.47, 0.34, 0.1);
+    ball2.scale.setScalar(size);
+    ball2.visible = p.b === 2;
+    body.add(ball2);
+    enableOutline(ball2, 200);
     this.scene.add(root);
 
     const label = document.createElement('div');
@@ -43,9 +52,9 @@ export class RemotePlayers {
     this.labels.appendChild(label);
 
     const r = {
-      id: p.id, root, body, ball, label,
+      id: p.id, char: p.char, root, body, ball, ball2, label,
       target: new THREE.Vector3(p.x, 0, p.z), yaw: p.yaw || 0, targetYaw: p.yaw || 0,
-      m: !!p.m, g: !!p.g, b: !!p.b, a: !!p.a, d: p.d || 0,
+      m: !!p.m, g: !!p.g, b: p.b || 0, a: !!p.a, d: p.d || 0,
       anim: { walk: 0, phase: Math.random() * 6, crouch: 0, throwT: 1, dropT: 0 },
     };
     this.map.set(p.id, r);
@@ -55,6 +64,8 @@ export class RemotePlayers {
       copy.visible = true; // 원본이 잠깐 숨겨진 상태여도 항상 보이게
       body.add(copy);
       r.model = copy;
+      const d = copy.userData.dims; // 떼리앙마다 손 위치·키가 다름
+      if (d) { ball.position.fromArray(d.hand); ball2.position.fromArray(d.hand2); }
     }).catch((err) => console.error('다른 플레이어 떼리앙 표시 실패', p.char, err));
   }
 
@@ -64,15 +75,16 @@ export class RemotePlayers {
     r.target.set(m.x, 0, m.z);
     r.targetYaw = m.yaw;
     r.m = !!m.m; r.g = !!m.g; r.a = !!m.a; r.d = m.d || 0;
-    if (!!m.b !== r.b) { r.b = !!m.b; r.ball.visible = r.b; }
+    const b = m.b || 0; // 0: 없음, 1: 하나, 2: 양손에 하나씩 (치떼링)
+    if (b !== r.b) { r.b = b; r.ball.visible = b > 0; r.ball2.visible = b === 2; }
   }
 
   thrown(id) {
     const r = this.map.get(id);
     if (!r) return;
     r.anim.throwT = 0;
-    r.b = false;
-    r.ball.visible = false;
+    if (r.b === 2) { r.b = 1; r.ball2.visible = false; } // 왼손 것 먼저 던짐
+    else { r.b = 0; r.ball.visible = false; }
   }
 
   remove(id) {
@@ -86,6 +98,8 @@ export class RemotePlayers {
   clear() {
     for (const id of [...this.map.keys()]) this.remove(id);
   }
+
+  charOf(id) { return this.map.get(id)?.char; }
 
   // 던진 위치를 그 사람 손 위치에 맞추고 싶을 때
   handPosition(id, out) {
@@ -110,7 +124,8 @@ export class RemotePlayers {
       animateBody(r.body, r.anim, dt, !r.d && (r.m || dist > 0.05), r.g && !r.d);
 
       // 이름표 (머리 위)
-      v.copy(r.root.position).setY(1.45 - 0.75 * (r.anim.fall || 0)).project(this.camera);
+      const top = r.model?.userData.dims?.h || 1.3; // 이름표는 그 떼리앙 머리 위
+      v.copy(r.root.position).setY(top + 0.15 - (top - 0.55) * (r.anim.fall || 0)).project(this.camera);
       const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       r.label.style.display = visible ? '' : 'none';
       if (visible) r.label.style.transform = `translate(${(v.x * 0.5 + 0.5) * w}px, ${(-v.y * 0.5 + 0.5) * h}px) translate(-50%, -100%)`;

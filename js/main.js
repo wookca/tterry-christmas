@@ -14,6 +14,7 @@ import { SnowPiles, pickReach } from './snowpiles.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
+import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -45,14 +46,16 @@ const CHARACTERS = [
       { id: 'green', name: '초록', color: '#4cb848', map: 'models/yangnyeom_card_green.png' },
       { id: 'brown', name: '갈색', color: '#8c2418', map: 'models/yangnyeom_card_brown.png' },
     ] },
-  { id: 'neo', name: '너떼링', ready: false },
+  { id: 'neo', name: '너떼링', file: 'models/neo.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   { id: 'yangneo', name: '양너떼링', file: 'models/yangneo.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  { id: 'longchi', name: '롱치떼링', ready: false },
+  { id: 'longchi', name: '롱치떼링', file: 'models/longchi.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   { id: 'ppyeo', name: '뼈떼링', ready: false },
   { id: 'sof', name: '솦떼링', file: 'models/sof.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  { id: 'ji', name: '지떼링', ready: false },
+  // 지떼링: 몸이 커서 눈덩이가 크고 맞히는 범위가 넓음, 대신 느림 (js/abilities.js)
+  { id: 'ji', name: '지떼링', file: 'models/ji.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   { id: 'jing', name: '징떼링', file: 'models/jing.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  { id: 'chi', name: '치떼링', ready: false },
+  // 치떼링: 눈을 모으면 양손에 하나씩 눈덩이 2개, 대신 느림 (js/abilities.js)
+  { id: 'chi', name: '치떼링', file: 'models/chi.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   { id: 'ko', name: '코떼링', file: 'models/ko.glb', ready: true, outline: true, unitScale: GLB_SCALE },
   // 토네이도 4종: 몸은 하나, 머리 위 토핑 그림만 바꿈 (카드를 누를 때마다 다음 맛으로)
   { id: 'tornado', name: '초코떼링', file: 'models/tornado.glb', ready: true, outline: true, unitScale: GLB_SCALE,
@@ -75,7 +78,7 @@ const CHARACTERS = [
     ] },
   { id: 'ham', name: '햄떼링', ready: false },
   { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE },
-  { id: 'wheel', name: '휠떼링', ready: false },
+  { id: 'wheel', name: '휠떼링', file: 'models/wheel.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
 ];
 
 // ─────────────────────────────────────────────
@@ -284,6 +287,30 @@ handBall.position.set(-0.47, 0.34, 0.1);
 handBall.visible = false;
 body.add(handBall);
 enableOutline(handBall, 200);
+// 왼손 눈덩이 (치떼링만: 양손에 하나씩)
+const handBall2 = makeBallMesh();
+handBall2.position.set(0.47, 0.34, 0.1);
+handBall2.visible = false;
+body.add(handBall2);
+enableOutline(handBall2, 200);
+state.ab = {};          // 지금 떼리앙의 특수 능력 (js/abilities.js)
+state.ballSize = 1;     // 눈덩이 크기 배율 (지떼링은 크게)
+state.ball2 = false;    // 왼손에도 눈덩이가 있음 (치떼링)
+state.dims = null;      // 지금 떼리앙 몸 크기
+// 떼리앙을 고르면: 손 위치·눈덩이 크기·능력을 그 떼리앙에 맞춤
+function applyBody(model, code) {
+  const d = model.userData.dims;
+  state.dims = d || null;
+  state.ab = abilityOf(code);
+  state.ballSize = ballSizeOf(code);
+  if (d) { handBall.position.fromArray(d.hand); handBall2.position.fromArray(d.hand2); }
+  handBall.scale.setScalar(state.ballSize);
+  handBall2.scale.setScalar(state.ballSize);
+  state.hasBall = false; state.ball2 = false;
+  handBall.visible = false; handBall2.visible = false;
+}
+const myTop = () => (state.dims ? state.dims.h : CHAR_HEIGHT); // 내 떼리앙 키 (이름표·게이지 높이)
+const moveSpeed = () => MOVE_SPEED * (state.ab.speed || 1);
 
 const snowballs = new SnowballSystem(scene);
 // 눈덩이가 깨지는 소리: 가까울수록 크게 (내 떼리앙 또는 카메라 기준 12m까지 들림)
@@ -401,6 +428,30 @@ function mergePatternParts(meshes, patternOn) {
     }
   }
 }
+// 몸 크기(키, 옆 반폭)와 손 위치 (눈덩이를 쥐는 자리). 예전 떼리앙은 손 위치를 그대로 둠
+const LEGACY_HAND = [-0.47, 0.34, 0.1];
+function measureBody(holder, ch) {
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder);
+  const dims = { h: box.max.y - box.min.y, rx: Math.max(-box.min.x, box.max.x), hand: LEGACY_HAND, hand2: [-LEGACY_HAND[0], LEGACY_HAND[1], LEGACY_HAND[2]] };
+  if (!ch.autoHand) return dims;
+  // 팔·다리(M_Limb)에서 가장 바깥쪽 점 = 손끝. 그 조금 바깥에 눈덩이
+  let lo = null, hi = null;
+  const v = new THREE.Vector3();
+  holder.traverse((o) => {
+    if (!o.isMesh || !o.material || o.material.name !== 'M_Limb') return;
+    const pos = o.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      if (v.y < 0.12) continue; // 발은 빼고
+      if (!lo || v.x < lo.x) lo = v.clone();
+      if (!hi || v.x > hi.x) hi = v.clone();
+    }
+  });
+  if (lo) dims.hand = [Math.min(-0.47, lo.x - 0.17), Math.max(0.25, lo.y), 0.1];
+  if (hi) dims.hand2 = [Math.max(0.47, hi.x + 0.17), Math.max(0.25, hi.y), 0.1];
+  return dims;
+}
 function loadBaseCharacter(ch) {
   if (modelCache.has(ch.id)) return modelCache.get(ch.id);
   const p = new Promise((resolve, reject) => {
@@ -469,6 +520,7 @@ function loadBaseCharacter(ch) {
 
       const holder = new THREE.Group();
       holder.add(wrap);
+      holder.userData.dims = measureBody(holder, ch);
       if (ch.outline) enableOutline(holder);
       holder.userData.clips = fbx.animations || [];
       resolve(holder);
@@ -595,6 +647,7 @@ async function startGame() {
   }
 
   const code = charCode(ch, state.variant);
+  applyBody(model, code);
   setContext({ character: ch.id, character_variant: code });
   track(player.visible ? 'character_change' : 'game_start', { character: ch.id, character_variant: code, mode: state.online ? 'online' : 'solo' });
   if (!player.visible) {
@@ -839,6 +892,7 @@ function finishGather() {
   state.hasBall = true;
   handBall.visible = true;
   handBall.scale.setScalar(0.01);
+  if (state.ab.twoBalls) { state.ball2 = true; handBall2.visible = true; handBall2.scale.setScalar(0.01); } // 치떼링: 양손에 하나씩
   $('ring').classList.add('hidden');
 }
 
@@ -854,6 +908,7 @@ function updateAimDir() {
 }
 
 const handWorld = new THREE.Vector3();
+const throwHand = () => (state.ball2 ? handBall2 : handBall); // 이번에 던질 손
 function landingPoint(out) {
   const dist = THROW_MIN + (THROW_MAX - THROW_MIN) * state.power;
   return out.copy(player.position).addScaledVector(aimDir, dist).setY(0);
@@ -864,16 +919,17 @@ function throwNow() {
   state.yaw = Math.atan2(aimDir.x, aimDir.z);
   player.rotation.y = state.yaw;
   player.updateMatrixWorld(true);
-  handBall.getWorldPosition(handWorld);
+  const hand = throwHand();
+  hand.getWorldPosition(handWorld);
   const target = landingPoint(new THREE.Vector3());
   const velocity = solveThrow(handWorld, target);
-  snowballs.throwBall({ from: handWorld, velocity });
+  snowballs.throwBall({ from: handWorld, velocity, size: state.ballSize });
   count('throws');
   net?.send({ t: 'throw', fx: handWorld.x, fy: handWorld.y, fz: handWorld.z, vx: velocity.x, vy: velocity.y, vz: velocity.z });
-  state.hasBall = false;
+  if (state.ball2) { state.ball2 = false; handBall2.visible = false; } // 치떼링: 왼손 것 먼저, 오른손 것은 남음
+  else { state.hasBall = false; handBall.visible = false; }
   state.aiming = false;
   state.power = 0;
-  handBall.visible = false;
   state.throwT = 0;
   $('power').classList.add('hidden');
   hideAim();
@@ -901,7 +957,7 @@ const aimTarget = new THREE.Vector3();
 function updateAimPreview() {
   if (!state.aiming) return;
   player.updateMatrixWorld(true);
-  handBall.getWorldPosition(handWorld);
+  throwHand().getWorldPosition(handWorld);
   landingPoint(aimTarget);
   const v = solveThrow(handWorld, aimTarget);
   const flight = 0.35 + Math.hypot(aimTarget.x - handWorld.x, aimTarget.z - handWorld.z) / 18;
@@ -1030,7 +1086,7 @@ function updateSnowAction(dt) {
   if (!$('ring').classList.contains('hidden')) {
     $('ringFill').style.strokeDashoffset = `${RING_LEN * (1 - state.gather)}`;
     $('ring').classList.toggle('paused', !!state.gatherPaused);
-    placeOverHead($('ring'), 1.65);
+    placeOverHead($('ring'), myTop() + 0.35);
   }
 
   // 조준 + 파워
@@ -1038,7 +1094,7 @@ function updateSnowAction(dt) {
     state.power = Math.min(1, state.power + dt / POWER_TIME);
     $('powerFill').style.width = `${state.power * 100}%`;
     $('power').classList.toggle('max', state.power >= 1);
-    placeOverHead($('power'), 1.75);
+    placeOverHead($('power'), myTop() + 0.45);
     updateAimDir();
     if (state.keys.size === 0 && !state.target) {
       state.yaw = angleLerp(state.yaw, Math.atan2(aimDir.x, aimDir.z), Math.min(1, dt * 14));
@@ -1046,7 +1102,9 @@ function updateSnowAction(dt) {
     }
     updateAimPreview();
   }
-  if (handBall.visible && handBall.scale.x < 1) handBall.scale.setScalar(Math.min(1, handBall.scale.x + dt * 6));
+  for (const hb of [handBall, handBall2]) {
+    if (hb.visible && hb.scale.x < state.ballSize) hb.scale.setScalar(Math.min(state.ballSize, hb.scale.x + dt * 6 * state.ballSize));
+  }
 }
 
 function updatePlayer(dt) {
@@ -1069,7 +1127,7 @@ function updatePlayer(dt) {
         if (state.pilePick) arriveAtPile();
       } else {
         move.copy(tmp).divideScalar(dist);
-        if (dist < MOVE_SPEED * dt) move.multiplyScalar(dist / (MOVE_SPEED * dt));
+        if (dist < moveSpeed() * dt) move.multiplyScalar(dist / (moveSpeed() * dt));
       }
     }
   }
@@ -1078,7 +1136,7 @@ function updatePlayer(dt) {
   if (moving) {
     const len = Math.min(move.length(), 1);
     const dir = move.clone().normalize();
-    player.position.addScaledVector(dir, MOVE_SPEED * len * dt);
+    player.position.addScaledVector(dir, moveSpeed() * len * dt);
     clampToWorld(player.position);
     const want = Math.atan2(dir.x, dir.z);
     state.yaw = angleLerp(state.yaw, want, Math.min(1, TURN_SPEED * dt));
@@ -1098,26 +1156,27 @@ function updatePlayer(dt) {
 // 뒤에서 맞으면 앞으로, 앞에서 맞으면 뒤로 쓰러지고, 아무 조작이나 하면 일어남
 // 일어난 뒤 1초 동안은 맞아도 안 쓰러짐
 // ─────────────────────────────────────────────
-const HIT_RADIUS = 0.62, HIT_HEIGHT = CHAR_HEIGHT + 0.25; // 몸통 + 눈덩이 크기만큼 넉넉하게
+// 맞는 범위: 몸 크기에 맞춘 원통 (예전 떼리앙은 반지름 0.62, 높이 1.55 그대로). 지떼링 눈덩이는 범위가 더 넓음
 const MIN_DOWN_TIME = 500; // 맞고 쓰러진 뒤 일어날 수 없는 시간 (ms)
 const GETUP_TIME = 450, IMMUNE_TIME = 1000; // ms
 state.down = null;
 state.risingUntil = 0;
 state.immuneUntil = 0;
-function hitsBody(pos, at) {
-  return pos.y < HIT_HEIGHT && Math.hypot(pos.x - at.x, pos.z - at.z) < HIT_RADIUS;
+function hitsBody(pos, at, dims, ball) {
+  const shape = hitShape(dims), extra = hitExtraOf(ball.size || 1);
+  return pos.y < shape.h + extra && Math.hypot(pos.x - at.x, pos.z - at.z) < shape.r + extra;
 }
 function checkSnowballHits() {
   const now = performance.now();
   snowballs.hitTest((ball, pos) => {
     // 내가 맞음 (내 공은 제외)
-    if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position)) {
+    if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position, state.dims, ball)) {
       tryKnockDown(fallDirFor(ball.velocity, state.yaw));
       return true;
     }
     // 다른 사람이 맞음: 눈덩이가 부서지고, 내가 던진 공이면 맞은 사람에게 알려줌 (그 사람이 쓰러짐)
     for (const r of remotes.map.values()) {
-      if (String(r.id) === ball.owner || !hitsBody(pos, r.root.position)) continue;
+      if (String(r.id) === ball.owner || !hitsBody(pos, r.root.position, r.model?.userData.dims, ball)) continue;
       if (ball.owner === 'me') count('hits_given');
       if (ball.owner === 'me') net?.send({ t: 'hit', id: r.id, d: fallDirFor(ball.velocity, r.yaw) > 0 ? 1 : 2 });
       return true;
@@ -1334,7 +1393,7 @@ $('labels').appendChild(myLabel);
 const labelPos = new THREE.Vector3();
 function updateMyLabel() {
   if (!state.playing || !player.visible || !myLabel.textContent) { myLabel.style.display = 'none'; return; }
-  labelPos.copy(player.position).setY(1.45 - 0.75 * (state.fall || 0)).project(camera);
+  labelPos.copy(player.position).setY(myTop() + 0.15 - (myTop() - 0.55) * (state.fall || 0)).project(camera);
   const visible = labelPos.z < 1 && Math.abs(labelPos.x) < 1.1 && Math.abs(labelPos.y) < 1.1;
   myLabel.style.display = visible ? '' : 'none';
   if (visible) myLabel.style.transform = `translate(${(labelPos.x * 0.5 + 0.5) * window.innerWidth}px, ${(-labelPos.y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -100%)`;
@@ -1424,7 +1483,7 @@ function connectOnline(ch) {
     onPile: (m) => snowPiles.apply(m),
     onThrow: (m) => {
       remotes.thrown(m.id);
-      snowballs.throwBall({ owner: String(m.id), from: new THREE.Vector3(m.fx, m.fy, m.fz), velocity: new THREE.Vector3(m.vx, m.vy, m.vz) });
+      snowballs.throwBall({ owner: String(m.id), from: new THREE.Vector3(m.fx, m.fy, m.fz), velocity: new THREE.Vector3(m.vx, m.vy, m.vz), size: ballSizeOf(remotes.charOf(m.id)) });
     },
     onDisconnect: () => { remotes.clear(); updateOnlineHud(); },
     onStatus: setNetStatus,
@@ -1446,7 +1505,7 @@ function sendState() {
     t: 'state',
     x: Math.round(player.position.x * 100) / 100, z: Math.round(player.position.z * 100) / 100,
     yaw: Math.round(state.yaw * 100) / 100,
-    m: state.walk > 0.5 ? 1 : 0, g: state.gathering ? 1 : 0, b: state.hasBall ? 1 : 0, a: state.aiming ? 1 : 0,
+    m: state.walk > 0.5 ? 1 : 0, g: state.gathering ? 1 : 0, b: state.hasBall ? (state.ball2 ? 2 : 1) : 0, a: state.aiming ? 1 : 0,
     d: state.down ? (state.down.dir > 0 ? 1 : 2) : 0,
   };
   const key = JSON.stringify(st);

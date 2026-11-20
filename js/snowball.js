@@ -56,11 +56,13 @@ export class SnowballSystem {
   }
 
   // 던지기. 네트워크로 받은 눈덩이도 같은 함수로 만들면 된다.
-  throwBall({ owner = 'me', from, velocity, startTime = this.time, id = `${owner}-${this.nextId++}` }) {
+  // size: 눈덩이 크기 배율 (지떼링 1.8)
+  throwBall({ owner = 'me', from, velocity, startTime = this.time, id = `${owner}-${this.nextId++}`, size = 1 }) {
     const mesh = makeBallMesh();
+    mesh.scale.setScalar(size);
     mesh.position.copy(from);
     this.scene.add(mesh);
-    const ball = { id, owner, from: from.clone(), velocity: velocity.clone(), startTime, mesh };
+    const ball = { id, owner, from: from.clone(), velocity: velocity.clone(), startTime, mesh, size };
     this.flying.push(ball);
     return ball;
   }
@@ -75,9 +77,9 @@ export class SnowballSystem {
       const y = b.from.y + b.velocity.y * t - 0.5 * GRAVITY * t * t;
       b.mesh.position.set(b.from.x + b.velocity.x * t, y, b.from.z + b.velocity.z * t);
       b.mesh.rotation.x += dt * 8;
-      if (y <= BALL_RADIUS * 0.5) {
+      if (y <= BALL_RADIUS * 0.5 * b.size) {
         b.mesh.position.y = 0;
-        this.burst(b.mesh.position, b.velocity);
+        this.burst(b.mesh.position, b.velocity, b.size);
         this.scene.remove(b.mesh);
         this.flying.splice(i, 1);
       }
@@ -127,26 +129,26 @@ export class SnowballSystem {
     for (let i = this.flying.length - 1; i >= 0; i--) {
       const b = this.flying[i];
       if (!hit(b, b.mesh.position)) continue;
-      this.burst(b.mesh.position, b.velocity);
+      this.burst(b.mesh.position, b.velocity, b.size);
       this.scene.remove(b.mesh);
       this.flying.splice(i, 1);
     }
   }
 
   // 퍼석! 3~5조각으로 부서짐
-  burst(at, incoming) {
+  burst(at, incoming, scale = 1) {
     this.onBurst?.(at); // 깨지는 소리 등
-    const n = 3 + Math.floor(Math.random() * 3);
+    const n = 3 + Math.floor(Math.random() * 3) + (scale > 1 ? 2 : 0); // 큰 눈덩이는 조각도 더 많이
     const dir = new THREE.Vector3(incoming.x, 0, incoming.z).normalize();
     for (let i = 0; i < n; i++) {
       const mesh = new THREE.Mesh(chunkGeo, snowMat);
       mesh.castShadow = true; // 조각은 작아서 외곽선 없이
-      const size = 0.7 + Math.random() * 0.6;
+      const size = (0.7 + Math.random() * 0.6) * Math.sqrt(scale);
       mesh.scale.setScalar(size);
       mesh.position.set(at.x, Math.max(at.y || 0, CHUNK_REST * size + 0.05), at.z);
       mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.8;
-      const sp = 0.8 + Math.random() * 1.4;
+      const sp = (0.8 + Math.random() * 1.4) * Math.sqrt(scale);
       const vel = new THREE.Vector3(Math.cos(a) * sp + dir.x * 1.2, 1.5 + Math.random() * 1.8, Math.sin(a) * sp + dir.z * 1.2);
       const spin = new THREE.Vector3((Math.random() - 0.5) * 12, 0, (Math.random() - 0.5) * 12);
       this.scene.add(mesh);
@@ -157,6 +159,6 @@ export class SnowballSystem {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, 0.015, at.z);
     this.scene.add(mesh);
-    this.powders.push({ mesh, age: 0, size: 0.8 + Math.random() * 0.4 });
+    this.powders.push({ mesh, age: 0, size: (0.8 + Math.random() * 0.4) * scale });
   }
 }

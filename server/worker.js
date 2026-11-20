@@ -48,7 +48,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 5, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 6, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -216,7 +216,7 @@ export class Channel extends DurableObject {
         p.yaw = r2(num(msg.yaw, -10, 10, p.yaw));
         p.m = msg.m ? 1 : 0; // 걷는 중
         p.g = msg.g ? 1 : 0; // 눈 모으는 중
-        p.b = msg.b ? 1 : 0; // 눈덩이 들고 있음
+        p.b = msg.b === 2 ? 2 : msg.b ? 1 : 0; // 눈덩이 들고 있음 (2: 양손에 하나씩, 치떼링)
         p.a = msg.a ? 1 : 0; // 조준 중
         p.d = msg.d === 1 || msg.d === 2 ? msg.d : 0; // 눈에 맞아 쓰러짐 (1: 앞으로, 2: 뒤로)
         ws.serializeAttachment(p);
@@ -226,7 +226,7 @@ export class Channel extends DurableObject {
       case 'throw': {
         if (!p.joined) return;
         const now = Date.now();
-        if (now - p.lastThrow < 300) return; // 너무 빠른 연속 던지기 방지
+        if (now - p.lastThrow < 150) return; // 너무 빠른 연속 던지기 방지 (치떼링은 두 개를 잇달아 던짐)
         p.lastThrow = now;
         ws.serializeAttachment(p);
         const t = {
