@@ -348,14 +348,33 @@ function mapOf(ch) { return ch % 2 === 0 ? 'big' : 'small'; }
 const START_CH = Math.max(1, parseInt(new URLSearchParams(location.search).get('ch') || '1', 10) || 1);
 let currentMap = null;
 const treeSets = {}; // 맵마다 나무 한 벌 (처음 들어갈 때 만들고, 다른 맵에선 숨김)
+function startLocalPiles() {
+  snowPiles.startLocal(currentMap === 'big' ? PILE_MAX_BIG : PILE_MAX_SMALL, MAPS[currentMap].radius); // 큰 맵은 넓은 만큼 더 많이
+}
+// 입장 가림막: 채널에 들어갈 때 서버가 그 채널 모습(눈무더기·다른 사람)을 알려줄 때까지 잠깐 하얗게 가림
+let enterTimer = 0;
+function showEnterFade(ch) {
+  const el = $('enterFade');
+  $('enterText').textContent = `채널 ${ch} · ${MAPS[mapOf(ch)].name} 들어가는 중…`;
+  el.classList.remove('hidden');
+  el.classList.add('on');
+  clearTimeout(enterTimer);
+  enterTimer = setTimeout(hideEnterFade, 5000); // 서버가 늦어도 5초 뒤엔 걷어냄 (연결 상태는 아래 글자로 보임)
+}
+function hideEnterFade() {
+  clearTimeout(enterTimer);
+  $('enterFade').classList.remove('on');
+}
 function applyMap(ch) {
   const key = mapOf(ch);
   if (key === currentMap) return;
   currentMap = key;
   const map = MAPS[key];
   setWorldRadius(map.radius);
-  // 눈무더기: 일단 내 컴퓨터가 놓아 두고, 온라인이면 서버가 알려주는 목록으로 바뀜 (큰 맵은 넓은 만큼 더 많이)
-  snowPiles.startLocal(key === 'big' ? PILE_MAX_BIG : PILE_MAX_SMALL, map.radius);
+  // 눈무더기: 혼자 하기면 내 컴퓨터가 놓고, 온라인이면 서버 목록이 올 때까지 비워 둠
+  // (예전엔 임시로 놓았다가 1초 뒤 서버 목록으로 바뀌어서 맵이 다시 그려지는 것처럼 보였음)
+  if (state.online) snowPiles.clear();
+  else startLocalPiles();
   campfire.setVisible(key === 'big');
   clampToWorld(player.position);
   if (!treeSets[key]) {
@@ -672,6 +691,7 @@ async function startGame() {
   myLabel.textContent = myName();
   if (state.online) {
     $('hudName').textContent = `${charName(ch, state.variant)} · ${myName()}`;
+    if (!net) showEnterFade(START_CH); // 처음 입장: 서버가 채널 모습을 알려줄 때까지 가림
     connectOnline(ch);
   }
   $('liteBtn').textContent = USE_LITE ? '원본 모델로 보기' : '경량 모델로 보기';
@@ -1463,10 +1483,13 @@ async function openChannels() {
       panel.classList.add('hidden');
       if (me || !net) return;
       track('channel_switch', { channel: c.ch, map: mapOf(c.ch) });
-      remotes.clear();
-      applyMap(c.ch);
-      net.switchTo(c.ch);
-      updateOnlineHud();
+      showEnterFade(c.ch);
+      setTimeout(() => { // 하얗게 덮인 뒤에 맵을 바꿈
+        remotes.clear();
+        applyMap(c.ch);
+        net.switchTo(c.ch);
+        updateOnlineHud();
+      }, 200);
     });
     list.appendChild(b);
   }
@@ -1496,7 +1519,8 @@ function connectOnline(ch) {
     onWelcome: (m) => {
       remotes.clear();
       applyMap(net.ch); // 꽉 차서 다른 채널로 넘어갔을 수도 있으니 맵 다시 맞춤
-      if (Array.isArray(m.piles)) snowPiles.setFromServer(m.piles); // 옛 서버면 내 컴퓨터 눈무더기 그대로
+      if (Array.isArray(m.piles)) snowPiles.setFromServer(m.piles);
+      else if (!snowPiles.local) startLocalPiles(); // 옛 서버는 더미를 모르므로 내 컴퓨터가 놓음
       m.players.forEach((p) => remotes.add(p));
       setContext({ channel: net.ch, map: mapOf(net.ch) });
       if (joinedCh !== net.ch) track('channel_join', { channel: net.ch, map: mapOf(net.ch), players: m.players.length + 1 }); // 재접속은 빼고
@@ -1505,6 +1529,7 @@ function connectOnline(ch) {
       joinLog.welcome(net.ch, m.log, m.now, m.name || myName());
       lastSent = null;
       updateOnlineHud();
+      requestAnimationFrame(() => requestAnimationFrame(hideEnterFade)); // 새 모습이 한 번 그려진 뒤에 걷어냄
     },
     onJoin: (p, re) => { joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p); updateOnlineHud(); },
     onLeave: (id) => {
@@ -1582,6 +1607,7 @@ async function init() {
   $('nameRow').classList.remove('hidden');
   $('nameInput').value = savedName();
   if (state.online) {
+    snowPiles.clear(); // 온라인: 눈무더기는 서버 목록으로만 (로딩 화면이 걷히기 전이라 안 보임)
     USE_LITE = true;
     $('select').querySelector('.sub').textContent = '닉네임을 정하고, 함께 눈밭을 걸을 친구를 골라주세요';
   }
