@@ -167,7 +167,7 @@ export class Campfire {
     // 눈 녹은 땅: 겨울의 차가운 회색빛 언 땅 + 가장자리는 녹다 만 회색 눈 (둘 다 울퉁불퉁한 모양, 선 없음)
     const flat = (color, offset) => new THREE.MeshStandardMaterial({ color, roughness: 1, polygonOffset: true, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
     const slush = new THREE.Mesh(blobGeometry(MELT_R + 0.35, 0.22, 77), flat(0xd5dde6, -1));
-    const dirt = new THREE.Mesh(blobGeometry(MELT_R - 0.05, 0.28, 31), flat(0x8b8884, -2));
+    const dirt = new THREE.Mesh(blobGeometry(MELT_R - 0.05, 0.28, 31), flat(0xb8a690, -2));
     for (const [m, y] of [[slush, 0.001], [dirt, 0.002]]) {
       m.scale.setScalar(1 / SIZE);   // 모양은 실제 크기(m)로 만들었으니 모닥불 배율을 되돌림
       m.position.y = y / SIZE;
@@ -175,7 +175,7 @@ export class Campfire {
       this.group.add(m);
     }
     // 흙 위 작은 자갈 몇 개
-    const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x6c6b6c, roughness: 1, flatShading: true });
+    const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x8c7f72, roughness: 1, flatShading: true });
     for (let i = 0; i < 9; i++) {
       const a = rand() * Math.PI * 2, d = (1.7 + rand() * 0.6) / SIZE;
       const p = new THREE.Mesh(new THREE.DodecahedronGeometry(0.035 + rand() * 0.03, 0), pebbleMat);
