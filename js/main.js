@@ -11,6 +11,7 @@ import { Footprints, stepCheck } from './footprints.js';
 import { Imprints, landedCheck } from './imprints.js';
 import { addTrees, setTreeFocus } from './trees.js';
 import { SnowPiles, pickReach } from './snowpiles.js';
+import { Campfire, FIRE_BLOCK_R } from './campfire.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
 import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
@@ -141,6 +142,7 @@ scene.add(shadowCatcher);
 const footprints = new Footprints(scene);
 const imprints = new Imprints(scene, renderer); // 넘어진 자리에 남는 떼리앙 모양 자국
 const snowPiles = new SnowPiles(scene); // 바닥 눈무더기 (클릭하면 걸어가서 바로 눈덩이를 집음)
+const campfire = new Campfire(scene); // 큰 숲 한가운데 모닥불 (큰 숲에서만 보임)
 
 // 바깥 눈밭 (경계 밖, 그림자 없이 멀리까지)
 const outer = new THREE.Mesh(
@@ -354,6 +356,7 @@ function applyMap(ch) {
   setWorldRadius(map.radius);
   // 눈무더기: 일단 내 컴퓨터가 놓아 두고, 온라인이면 서버가 알려주는 목록으로 바뀜 (큰 맵은 넓은 만큼 더 많이)
   snowPiles.startLocal(key === 'big' ? PILE_MAX_BIG : PILE_MAX_SMALL, map.radius);
+  campfire.setVisible(key === 'big');
   clampToWorld(player.position);
   if (!treeSets[key]) {
     treeSets[key] = addTrees(scene, gltfLoader, GLB_SCALE, map.radius)
@@ -1035,6 +1038,7 @@ function clampToWorld(v) {
   const d = Math.hypot(v.x, v.z);
   if (d > max) { v.x *= max / d; v.z *= max / d; }
   v.y = 0;
+  campfire.pushOut(v); // 큰 숲 모닥불 안으로는 못 들어감
   return v;
 }
 
@@ -1139,6 +1143,24 @@ function updatePlayer(dt) {
   if (moving) {
     const len = Math.min(move.length(), 1);
     const dir = move.clone().normalize();
+    // 모닥불에 막히면: 클릭으로 가는 중엔 불 둘레를 따라 돌아가고, 방향키면 불 쪽으로만 안 움직임
+    if (campfire.active) {
+      const step = moveSpeed() * len * dt;
+      const nx = player.position.x + dir.x * step, nz = player.position.z + dir.z * step;
+      const d = Math.hypot(player.position.x, player.position.z);
+      if (Math.hypot(nx, nz) < FIRE_BLOCK_R + 0.02 && d > 1e-4) {
+        const ux = player.position.x / d, uz = player.position.z / d; // 불 바깥쪽 방향
+        const inward = dir.x * ux + dir.z * uz;
+        if (inward < 0) {
+          if (state.target && !state.keys.size) {
+            const side = (dir.x * -uz + dir.z * ux) >= 0 ? 1 : -1;
+            dir.set(-uz * side, 0, ux * side);
+          } else {
+            dir.x -= ux * inward; dir.z -= uz * inward;
+          }
+        }
+      }
+    }
     player.position.addScaledVector(dir, moveSpeed() * len * dt);
     clampToWorld(player.position);
     const want = Math.atan2(dir.x, dir.z);
@@ -1172,6 +1194,7 @@ function hitsBody(pos, at, dims, ball) {
 function checkSnowballHits() {
   const now = performance.now();
   snowballs.hitTest((ball, pos) => {
+    if (campfire.hitsBall(pos)) return true; // 모닥불에 닿으면 부서짐
     // 내가 맞음 (내 공은 제외)
     if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position, state.dims, ball)) {
       tryKnockDown(fallDirFor(ball.velocity, state.yaw));
@@ -1310,6 +1333,7 @@ function loop() {
   }
   footprints.update(dt);
   snowPiles.update(dt, player.visible ? [player.position] : []);
+  campfire.update(dt);
   imprints.update(dt);
   updateMyLabel();
   sendState();

@@ -16,7 +16,8 @@ import * as THREE from 'three';
 export const OUTLINE_LAYER = 1;
 const DEPTH_RANGE = 80; // 깊이 저장 범위(월드 단위)
 export const FADE_NEAR = 35, FADE_FAR = 90; // 안개와 같은 거리: 멀리 있는 선도 안개처럼 옅어짐
-export const SOFT_PART = 202; // 이 부위 번호는 얇은 회색 선 (눈무더기)
+export const SOFT_PART = 202; // 이 부위 번호는 얇은 회색 선 (눈무더기 등 떼리앙이 아닌 환경물)
+export const HIDE_PART = 203; // 이 부위 번호는 선이 전혀 없음 (모닥불 불꽃). 뒤에 있는 물체의 선만 가려 줌
 
 // 맵 밖 나무처럼 여러 개를 한 번에 그리는 물체(InstancedMesh)가
 // 카메라와 내 떼리앙 사이를 가리면 그 부분만 뚫어서 보이게 함 (나무 재질과 외곽선 그리기에 같이 씀)
@@ -101,10 +102,12 @@ const edgeMaterial = new THREE.ShaderMaterial({
     float depthOf(vec4 c) { return (c.g + c.b / 255.0) * ${DEPTH_RANGE.toFixed(1)}; }
     // 부드러운 선 대상(눈무더기 등, 부위 번호 ${SOFT_PART}): 선을 절반 두께, 쿨톤 회색으로
     bool soft(vec4 c) { return c.a > 0.5 && abs(c.r * 255.0 - ${SOFT_PART}.0) < 0.5; }
+    // 선 없는 물체(부위 번호 ${HIDE_PART}): 빈 바닥처럼 취급 → 자기 둘레엔 선이 없고, 뒤에 가려진 물체의 선도 안 보임
+    bool has(vec4 c) { return c.a > 0.5 && abs(c.r * 255.0 - ${HIDE_PART}.0) > 0.5; }
     // 1: 선 있음. kind: 양쪽이 '부드러운 물체 또는 빈 바닥'뿐이면 부드러운 선(1), 아니면 보통 선(0)
     float edgeAt(vec4 c, vec2 offset, out float kind) {
       vec4 n = texture2D(tId, vUv + offset);
-      bool a = c.a > 0.5, b = n.a > 0.5;
+      bool a = has(c), b = has(n);
       kind = ((!a || soft(c)) && (!b || soft(n))) ? 1.0 : 0.0;
       if (a != b) return 1.0;                                  // 바깥 테두리
       if (!a) return 0.0;
@@ -116,7 +119,7 @@ const edgeMaterial = new THREE.ShaderMaterial({
     void main() {
       vec4 c = texture2D(tId, vUv);
       float e = 0.0, es = 0.0, k;
-      float nearD = c.a > 0.5 ? depthOf(c) : 1e9;
+      float nearD = has(c) ? depthOf(c) : 1e9;
       for (int i = 0; i < 8; i++) {
         float ang = float(i) * 0.785398;
         vec2 dir = vec2(cos(ang), sin(ang));
@@ -125,7 +128,7 @@ const edgeMaterial = new THREE.ShaderMaterial({
         h = edgeAt(c, dir * texel * thickness * 0.5, k);  if (k < 0.5) e += h; else es += h;
         h = edgeAt(c, dir * texel * thickness * 0.25, k); if (k > 0.5) es += h;
         vec4 n = texture2D(tId, vUv + dir * texel * thickness);
-        if (n.a > 0.5) nearD = min(nearD, depthOf(n));
+        if (has(n)) nearD = min(nearD, depthOf(n));
       }
       float fade = 1.0 - smoothstep(${FADE_NEAR.toFixed(1)}, ${FADE_FAR.toFixed(1)}, nearD); // 멀수록 옅게 (안개처럼)
       float alpha = clamp(e / 3.0, 0.0, 1.0) * fade;
