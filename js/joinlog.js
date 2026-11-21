@@ -8,9 +8,8 @@ const MAX = 200;
 
 const pad = (n) => String(n).padStart(2, '0');
 function timeText(at) {
-  const d = new Date(at), now = new Date();
-  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  return d.toDateString() === now.toDateString() ? t : `${d.getMonth() + 1}/${d.getDate()} ${t}`;
+  const d = new Date(at);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export class JoinLog {
@@ -141,10 +140,21 @@ export class JoinLog {
     }
     let mine = false; // 내 줄만 빨갛게 (닉네임이 아니라 접속 번호로 구분)
     const b = (name) => { const s = document.createElement('b'); s.textContent = name; if (mine) s.className = 'mine'; return s; };
+    const today = new Date().toDateString();
+    let prevDay = null;
     for (const e of this.entries) {
       mine = !!e.mine;
+      // 날짜가 바뀌는 곳(자정 기준)에 "——— 11/21 ———" 구분선. 오늘 기록만 있으면 구분선 없음
+      const d = new Date(e.at), day = d.toDateString();
+      if (day !== prevDay && (prevDay !== null || day !== today)) {
+        const sep = document.createElement('div');
+        sep.className = 'log-day';
+        sep.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+        this.list.appendChild(sep);
+      }
+      prevDay = day;
       const row = document.createElement('div');
-      row.className = `log-row log-${e.k}`;
+      row.className = `log-row log-${e.k}${day !== today ? ' log-old' : ''}`; // 지난 날 기록은 한 톤 흐리게
       const t = document.createElement('span');
       t.className = 'log-time';
       t.textContent = timeText(e.at);

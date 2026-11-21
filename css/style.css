@@ -293,6 +293,9 @@ html, body {
 .log-join .log-msg { color: #9fe3a8; }
 .log-rename .log-msg { color: #ffd77a; }
 .log-leave .log-msg { color: #aab6c3; }
+.log-old { opacity: 0.55; } /* 어제 이전 기록: 한 톤 낮게 */
+.log-day { display: flex; align-items: center; gap: 8px; margin: 5px 0 3px; color: #8d9bab; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.log-day::before, .log-day::after { content: ''; flex: 1; border-top: 1px solid rgba(255, 255, 255, 0.22); }
 .log-empty { color: #aab6c3; font-size: 13px; padding: 6px 0 4px; }
 @media (max-width: 600px) {
   .log-panel { left: 8px; top: 48px; width: 320px; padding: 8px 10px 6px; }
