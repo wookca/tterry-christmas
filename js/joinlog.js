@@ -14,7 +14,8 @@ function timeText(at) {
 }
 
 export class JoinLog {
-  constructor({ button, panel, list, title, close, myName }) {
+  constructor({ button, panel, list, title, close, myName, sid }) {
+    this.sid = sid;
     this.btn = button; this.panel = panel; this.list = list; this.title = title;
     this.myName = myName;
     this.entries = [];
@@ -77,11 +78,11 @@ export class JoinLog {
     this.pending.clear();
     if (Array.isArray(serverLog)) {
       const shift = Number.isFinite(serverNow) ? Date.now() - serverNow : 0; // 내 컴퓨터 시계와 서버 시계 차이
-      this.entries = serverLog.filter((e) => e && e.k && e.n).map((e) => ({ k: e.k, n: String(e.n), o: e.o ? String(e.o) : '', at: (e.at || Date.now()) + shift }));
+      this.entries = serverLog.filter((e) => e && e.k && e.n).map((e) => ({ k: e.k, n: String(e.n), o: e.o ? String(e.o) : '', at: (e.at || Date.now()) + shift, mine: !!e.s && e.s === this.sid }));
     } else if (ch !== this.ch) {
-      this.entries = [{ k: 'join', n: myName, at: Date.now() }];
+      this.entries = [{ k: 'join', n: myName, at: Date.now(), mine: true }];
     } else if (this.lastMine && this.lastMine !== myName) {
-      this.push({ k: 'rename', o: this.lastMine, n: myName });
+      this.push({ k: 'rename', o: this.lastMine, n: myName, mine: true });
     }
     this.ch = ch;
     this.lastMine = myName;
@@ -138,9 +139,10 @@ export class JoinLog {
       this.updateBar?.();
       return;
     }
-    const me = this.myName();
-    const b = (name) => { const s = document.createElement('b'); s.textContent = name; if (name === me) s.className = 'mine'; return s; };
+    let mine = false; // 내 줄만 빨갛게 (닉네임이 아니라 접속 번호로 구분)
+    const b = (name) => { const s = document.createElement('b'); s.textContent = name; if (mine) s.className = 'mine'; return s; };
     for (const e of this.entries) {
+      mine = !!e.mine;
       const row = document.createElement('div');
       row.className = `log-row log-${e.k}`;
       const t = document.createElement('span');

@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { paintModel, labelParts } from './paint.js';
 import { OutlinePass, enableOutline } from './outline.js';
 import { animateBody } from './anim.js';
-import { Net, detectServer, fetchChannels } from './net.js';
+import { Net, detectServer, fetchChannels, SESSION_ID } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
 import { Footprints, stepCheck } from './footprints.js';
@@ -1589,7 +1589,7 @@ function myCharCode() {
   return charCode(ch, state.variant);
 }
 // 채널 기록 창 (왼쪽 위 버튼)
-const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $('logList'), title: $('logTitle'), close: $('logClose'), myName: () => myLabel.textContent });
+const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $('logList'), title: $('logTitle'), close: $('logClose'), myName: () => myLabel.textContent, sid: SESSION_ID });
 let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {

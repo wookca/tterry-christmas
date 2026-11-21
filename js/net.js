@@ -20,6 +20,12 @@ export async function detectServer() {
   }
 }
 
+// 이 탭의 임의 번호: 채널 기록에서 내 줄만 빨갛게 (닉네임이 같은 다른 사람은 제외)
+export const SESSION_ID = (() => {
+  const make = () => Math.random().toString(36).slice(2, 12);
+  try { let v = sessionStorage.getItem('tterrySid'); if (!v) { v = make(); sessionStorage.setItem('tterrySid', v); } return v; } catch { return make(); }
+})();
+
 export class Net {
   constructor(handlers) {
     this.h = handlers;       // { onWelcome, onJoin, onLeave, onState, onThrow, onStatus }
@@ -48,7 +54,7 @@ export class Net {
     this.h.onStatus?.(`채널 ${this.ch} 접속 중…`);
     // re: 이 채널에 바로 전에 쓰던 닉네임 (떼리앙·닉네임 바꾸기나 잠깐 끊겨서 다시 접속할 때) → 서버 기록에서 "나감+들어옴" 대신 "닉네임 변경"으로
     const re = this.lastCh === this.ch ? this.lastName : null;
-    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', ...this.hello(), ...(re ? { re } : {}) }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', ...this.hello(), sid: SESSION_ID, ...(re ? { re } : {}) }));
     ws.onmessage = (e) => {
       let m;
       try { m = JSON.parse(e.data); } catch { return; }

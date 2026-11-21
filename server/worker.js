@@ -54,7 +54,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 8, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 9, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -178,7 +178,7 @@ export class Channel extends DurableObject {
       const o = ws.deserializeAttachment();
       if (o && o.joined && o.id !== a.id && o.name === a.name) return;
     }
-    this.addLog({ k: 'leave', n: a.name });
+    this.addLog({ k: 'leave', n: a.name, s: a.sid || undefined });
   }
   // 들어옴: re = 바로 전에 이 채널에서 쓰던 닉네임 (다시 접속한 경우에만 옴)
   logJoin(p, re) {
@@ -193,8 +193,8 @@ export class Channel extends DurableObject {
       }
       if (!back) back = this.players().some((o) => o.p.id !== p.id && o.p.name === re); // 옛 연결이 아직 안 정리됨
     }
-    if (!back) this.addLog({ k: 'join', n: p.name });
-    else if (re !== p.name) this.addLog({ k: 'rename', o: re, n: p.name });
+    if (!back) this.addLog({ k: 'join', n: p.name, s: p.sid || undefined });
+    else if (re !== p.name) this.addLog({ k: 'rename', o: re, n: p.name, s: p.sid || undefined });
     else this.ctx.storage.put('log', this.log).catch(() => {});
   }
 
@@ -254,6 +254,7 @@ export class Channel extends DurableObject {
         }
         p.joined = true;
         p.name = cleanName(msg.name) || `눈사람${p.id}`;
+        p.sid = String(msg.sid || '').replace(/[^a-z0-9]/gi, '').slice(0, 16); // 기록에서 '내 것'을 알아보는 탭별 임의 번호 (닉네임이 같은 사람과 구분)
         const re = cleanName(msg.re);
         p.char = String(msg.char || 'potteling').replace(/[^a-z0-9_-]/gi, '').slice(0, 24);
         const R = radiusFor(p.ch);
