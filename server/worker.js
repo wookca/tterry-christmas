@@ -54,7 +54,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 9, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 10, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -124,6 +124,19 @@ export class Channel extends DurableObject {
       const a = ws.deserializeAttachment();
       if (!a || !a.joined) continue;
       if (now - (a.seen || 0) > STALE_MS) { this.drop(ws, a); continue; }
+      out.push({ ws, p: a });
+    }
+    return out;
+  }
+
+  // 미리 접속한 사람 (떼리앙 고르는 중): 다른 사람·눈무더기 소식은 받지만 인원·기록에는 안 들어감
+  watchers() {
+    const out = [];
+    const now = Date.now();
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment();
+      if (!a || a.joined || !a.watch) continue;
+      if (now - (a.seen || 0) > STALE_MS) { try { ws.close(4000, 'timeout'); } catch { /* 이미 닫힘 */ } continue; }
       out.push({ ws, p: a });
     }
     return out;
@@ -221,7 +234,7 @@ export class Channel extends DurableObject {
 
   broadcast(msg, exceptId) {
     const s = JSON.stringify(msg);
-    for (const { ws, p } of this.players()) {
+    for (const { ws, p } of [...this.players(), ...this.watchers()]) {
       if (p.id === exceptId) continue;
       try { ws.send(s); } catch { /* 끊긴 소켓 */ }
     }
@@ -245,8 +258,17 @@ export class Channel extends DurableObject {
     this.growPiles(now);
 
     switch (msg.t) {
+      case 'watch': {
+        // 떼리앙을 고르는 동안 미리 접속: 채널 모습만 알려주고, 다른 사람에게는 아직 안 알림
+        if (p.joined) return;
+        p.watch = true;
+        ws.serializeAttachment(p);
+        ws.send(JSON.stringify({ t: 'peek', ch: p.ch, players: this.players().map((o) => this.publicState(o.p)), max: maxFor(p.ch), piles: this.piles.filter((q) => q.up).map(publicPile) }));
+        return;
+      }
       case 'hello': {
         if (p.joined) return;
+        p.watch = false;
         if (this.players().length >= maxFor(p.ch)) {
           ws.send(JSON.stringify({ t: 'full', ch: p.ch }));
           ws.close(4001, 'channel full');

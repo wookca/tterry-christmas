@@ -168,11 +168,13 @@ html, body {
 /* 폰: 떼리앙 카드를 위아래 두 줄로 놓고 옆으로 넘겨 보기 */
 @media (max-width: 520px) {
   .cards {
-    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 116px; padding-bottom: 8px;
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 92px; gap: 8px; padding-bottom: 8px;
     overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
     touch-action: pan-x; scrollbar-width: thin;
   }
-  .card { scroll-snap-align: start; }
+  .card { scroll-snap-align: start; padding: 6px 4px 7px; border-radius: 12px; }
+  .card .thumb { width: 70px; height: 70px; margin-bottom: 4px; } /* 폰: 그림을 작게 (2026-11-21) */
+  .card .name { font-size: 12px; }
   /* 폰도 치떼링·지떼링은 맨 끝 (넘겨야 보임) */
   .card[data-id="chi"] { order: 1; }
   .card[data-id="ji"] { order: 2; }

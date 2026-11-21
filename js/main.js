@@ -744,7 +744,7 @@ async function startGame() {
   myLabel.textContent = myName();
   if (state.online) {
     $('hudName').textContent = `${charName(ch, state.variant)} · ${myName()}`;
-    if (!net) showEnterFade(START_CH); // 처음 입장: 서버가 채널 모습을 알려줄 때까지 가림
+    if (!peeked && (!net || net.watching)) showEnterFade(net ? net.ch : START_CH); // 처음 입장: 서버가 채널 모습을 알려줄 때까지 가림 (미리 받아 뒀으면 안 가림)
     connectOnline(ch);
   }
   $('liteBtn').textContent = USE_LITE ? '원본 모델로 보기' : '경량 모델로 보기';
@@ -1593,6 +1593,11 @@ const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $
 let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
+  if (net && net.watching) {
+    // 떼리앙을 고르는 동안 미리 접속해 둔 연결로 바로 들어감 (채널 모습은 이미 받아 둠)
+    net.join(helloInfo, net.ch);
+    return;
+  }
   if (net) {
     // 이미 접속 중에 떼리앙(또는 닉네임)을 바꿨으면 같은 채널에 다시 접속해서 새 모습으로 알림
     // (서버는 접속할 때 받은 떼리앙만 기억하므로, 다시 접속해야 다른 사람 화면에도 바뀜)
@@ -1600,7 +1605,34 @@ function connectOnline(ch) {
     if (sentProfile && (sentProfile.char !== now.char || sentProfile.name !== now.name)) net.switchTo(net.ch);
     return;
   }
+  makeNet();
+  net.ch = START_CH;
+  net.join(helloInfo, START_CH);
+}
+// 서버에 처음 알리는 내 정보 (떼리앙·닉네임·자리)
+function helloInfo() {
+  return {
+    ...(sentProfile = { name: myName(), char: myCharCode() }),
+    x: player.position.x, z: player.position.z, yaw: state.yaw,
+  };
+}
+// 떼리앙을 고르는 동안 서버에 미리 접속: 채널의 다른 사람·눈무더기를 받아 두기만 하고 나는 아직 안 들어감
+// (다른 사람 화면에도, 채널 기록에도 안 나옴) → [시작]을 누르면 같은 연결로 바로 입장
+function peekOnline() {
+  if (net) return;
+  makeNet();
+  net.watch(START_CH);
+}
+let peeked = false; // 미리 접속해서 채널 모습을 받아 둠 → 입장할 때 가림막 없이 바로
+function makeNet() {
   net = new Net({
+    onPeek: (m) => {
+      applyMap(net.ch);
+      if (Array.isArray(m.piles)) snowPiles.setFromServer(m.piles);
+      remotes.clear();
+      m.players.forEach((p) => remotes.add(p));
+      peeked = true;
+    },
     onWelcome: (m) => {
       remotes.clear();
       applyMap(net.ch); // 꽉 차서 다른 채널로 넘어갔을 수도 있으니 맵 다시 맞춤
@@ -1610,17 +1642,17 @@ function connectOnline(ch) {
       setContext({ channel: net.ch, map: mapOf(net.ch) });
       if (joinedCh !== net.ch) track('channel_join', { channel: net.ch, map: mapOf(net.ch), players: m.players.length + 1 }); // 재접속은 빼고
       joinedCh = net.ch;
-      if (m.name) { $('hudName').textContent = `${ch.name} · ${m.name}`; myLabel.textContent = m.name; }
+      if (m.name) { const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS[0]; $('hudName').textContent = `${charName(ch, state.variant)} · ${m.name}`; myLabel.textContent = m.name; }
       joinLog.welcome(net.ch, m.log, m.now, m.name || myName());
       lastSent = null;
       updateOnlineHud();
       requestAnimationFrame(() => requestAnimationFrame(hideEnterFade)); // 새 모습이 한 번 그려진 뒤에 걷어냄
     },
-    onJoin: (p, re) => { joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p); updateOnlineHud(); },
+    onJoin: (p, re) => { if (net.id) joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p); updateOnlineHud(); },
     onLeave: (id) => {
       const name = remotes.nameOf(id);
       remotes.remove(id);
-      joinLog.leave(name, !!name && remotes.hasName(name));
+      if (net.id) joinLog.leave(name, !!name && remotes.hasName(name)); // 미리 접속 중(아직 안 들어감)엔 기록 안 함
       updateOnlineHud();
     },
     onState: (m) => remotes.update(m),
@@ -1634,11 +1666,6 @@ function connectOnline(ch) {
     onStatus: setNetStatus,
     onOld: onOldClient,
   });
-  net.ch = START_CH;
-  net.join(() => ({
-    ...(sentProfile = { name: myName(), char: myCharCode() }),
-    x: player.position.x, z: player.position.z, yaw: state.yaw,
-  }), START_CH);
 }
 
 // 내 상태를 0.1초마다 (바뀌었을 때만, 아니면 2초마다) 보냄
@@ -1715,6 +1742,7 @@ async function init() {
   selectCard(first.id);
   $('loading').classList.add('hidden');
   openSelect();
+  if (state.online) peekOnline(); // 고르는 동안 미리 접속 (남에게는 안 보임)
 
   // 디버그/테스트용
   window.__game = { state, player, camera, CHARACTERS, snowballs, remotes, get net() { return net; } };
