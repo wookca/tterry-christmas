@@ -328,6 +328,17 @@ snowballs.onBurst = (at) => {
   playShatter(Math.max(0, 1 - d / 12));
 };
 
+// 다시 등장: 맵 가장자리 랜덤 자리에서 중심을 보며 통 떨어짐 (처음 입장할 때와 같은 연출)
+function respawnAtEdge() {
+  endAction(true);
+  state.target = null; state.pilePick = null; state.down = null;
+  pickSpawn();
+  player.position.copy(state.spawn);
+  state.yaw = Math.atan2(-state.spawn.x, -state.spawn.z);
+  player.rotation.y = state.yaw;
+  state.dropT = 0;
+  lastSent = null; // 새 자리를 바로 알림
+}
 function pickSpawn() {
   const a = Math.random() * Math.PI * 2;
   state.spawn.set(Math.cos(a) * (WORLD_RADIUS - SPAWN_IN), 0, Math.sin(a) * (WORLD_RADIUS - SPAWN_IN));
@@ -1572,6 +1583,7 @@ async function openChannels() {
       setTimeout(() => { // 하얗게 덮인 뒤에 맵을 바꿈
         remotes.clear();
         applyMap(c.ch);
+        respawnAtEdge(); // 채널을 바꾸면 새 맵 가장자리 아무 곳에서 다시 시작 (2026-11-21 요청)
         net.switchTo(c.ch);
         updateOnlineHud();
       }, 200);
