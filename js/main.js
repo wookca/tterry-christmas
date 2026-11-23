@@ -979,7 +979,7 @@ const THROW_MIN = 3;   // 파워 0일 때 거리
 const THROW_MAX = 12;  // 파워 MAX일 때 거리 (너무 멀지 않게)
 const POWER_TIME = 1;  // 1초 누르면 파워 MAX
 
-// 왼쪽 버튼(또는 스페이스)을 누르기 시작
+// 왼쪽 버튼을 누르기 시작
 function beginSnowAction() {
   if (state.hasBall) {
     state.aiming = true;
@@ -991,7 +991,7 @@ function beginSnowAction() {
     state.target = null;       // 오른쪽 클릭 이동 중이었다면 멈춤
   }
 }
-// 왼쪽 버튼(또는 스페이스)을 뗌
+// 왼쪽 버튼을 뗌
 function endAction(cancelled) {
   if (state.aiming) {
     if (cancelled) { state.aiming = false; $('power').classList.add('hidden'); hideAim(); }
@@ -1129,7 +1129,7 @@ function zoomCamera(factor) {
 }
 
 // ─────────────────────────────────────────────
-// 입력: 방향키 / WASD, 스페이스(= 마우스 왼쪽 누르기)
+// 입력: 방향키 / WASD, 스페이스(= 내 떼리앙 누르기: "떼" / 길게 "떼~")
 // ─────────────────────────────────────────────
 const KEYMAP = {
   ArrowUp: 'up', KeyW: 'up',
@@ -1143,8 +1143,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (e.repeat || spaceDown) return;
     if (getUpIfDown()) return;
+    if (press?.kind === 'poke' || state.pokeHold) return; // 마우스로 누르는 중
     spaceDown = true;
-    beginSnowAction();
+    startPoke(); // 스페이스 = 내 떼리앙 누르기 (짧게 "떼", 길게 "떼~"). 2026-11-23 요청: 눈 모으기·던지기 대신
     return;
   }
   const k = KEYMAP[e.code];
@@ -1158,14 +1159,14 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') {
-    if (spaceDown && state.playing) endAction(false);
+    if (spaceDown && state.playing && state.pokeHold) endPoke();
     spaceDown = false;
     return;
   }
   const k = KEYMAP[e.code];
   if (k) state.keys.delete(k);
 });
-window.addEventListener('blur', () => { state.keys.clear(); if (spaceDown) { spaceDown = false; endAction(true); } });
+window.addEventListener('blur', () => { state.keys.clear(); if (spaceDown) { spaceDown = false; if (state.pokeHold) cancelPoke(); } });
 
 function clampToWorld(v) {
   const max = WORLD_RADIUS - 0.8;
@@ -1372,6 +1373,7 @@ function knockDown(dir) {
   count('times_hit');
   endAction(true);
   if (press?.kind === 'poke') { cancelPoke(); press = null; }
+  if (spaceDown) { if (state.pokeHold) cancelPoke(); spaceDown = false; }
   state.target = null;
   state.down = { dir, until: performance.now() + MIN_DOWN_TIME }; // 최소 0.5초는 강제로 누워 있음
   state.dropT = 1;
