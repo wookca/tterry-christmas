@@ -54,7 +54,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 10, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 11, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -341,6 +341,17 @@ export class Channel extends DurableObject {
           if (o.p.id !== target || o.p.id === p.id) continue;
           try { o.ws.send(JSON.stringify({ t: 'hit', by: p.id, d })); } catch { /* 끊긴 소켓 */ }
         }
+        return;
+      }
+      case 'poke': {
+        // 자기 떼리앙을 누름(p:1) / 뗌(p:0, l:1이면 길게, s:1이면 소리 없이) → 다른 사람에게 그대로 전함
+        if (!p.joined) return;
+        const now = Date.now();
+        p.pokeN = now - (p.pokeAt || 0) > 1000 ? 1 : (p.pokeN || 0) + 1; // 1초에 30번 넘게는 무시 (도배 방지)
+        if (p.pokeN === 1) p.pokeAt = now;
+        try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ }
+        if (p.pokeN > 30) return;
+        this.broadcast({ t: 'poke', id: p.id, p: msg.p ? 1 : 0, l: msg.l ? 1 : 0, s: msg.s ? 1 : 0, c: Math.max(0, Math.min(4, Number(msg.c) || 0)) }, p.id);
         return;
       }
       case 'ping':

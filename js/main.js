@@ -3,7 +3,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { paintModel, labelParts } from './paint.js';
 import { OutlinePass, enableOutline } from './outline.js';
-import { animateBody } from './anim.js';
+import { animateBody, pokePress, pokeRelease, LONG_POKE } from './anim.js';
 import { Net, detectServer, fetchChannels, SESSION_ID } from './net.js';
 import { RemotePlayers } from './remote.js';
 import { SnowballSystem, makeBallMesh, solveThrow, GRAVITY } from './snowball.js';
@@ -15,7 +15,7 @@ import { Campfire, FIRE_BLOCK_R } from './campfire.js';
 import { Snowman, SNOWMAN_BLOCK_R, SNOWMAN_CHANNELS } from './snowman.js';
 import { addStat, setUnlockHandler, isLockedChar, pendingReveals, markRevealed, isNewChar, markSeen } from './eggs.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
-import { playStep, playPack, playPackDone, playShatter, isSoundOn, setSoundOn } from './sound.js';
+import { playStep, playPack, playPackDone, playShatter, playTte, isSoundOn, setSoundOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
 import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
 import { JoinLog } from './joinlog.js';
@@ -828,6 +828,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (pointers.size >= 2) {
     // 두 손가락: 핀치 줌. 하던 동작은 취소
     endAction(true);
+    if (press?.kind === 'poke') cancelPoke();
     press = null;
     pinchDist = pinchLength();
     return;
@@ -838,6 +839,7 @@ canvas.addEventListener('pointerdown', (e) => {
   let kind;
   if (e.button === 1) kind = 'camera';
   else if (e.button === 2) kind = 'move';
+  else if (!state.down && isOnMe(e.clientX, e.clientY)) { kind = 'poke'; startPoke(); } // 내 떼리앙을 누름 → "떼" (이동·눈 모으기보다 먼저)
   else kind = 'snow';
   press = { kind, touch, x: e.clientX, y: e.clientY, t: performance.now(), dragging: false, started: false };
 });
@@ -847,7 +849,7 @@ canvas.addEventListener('pointermove', (e) => {
   // 마우스를 눈무더기 위에 올리면 손가락 커서 (누를 수 있다는 표시)
   if (e.pointerType === 'mouse' && state.playing && !pointers.size) {
     ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    canvas.style.cursor = snowPiles.pick(ndc, camera) ? 'pointer' : '';
+    canvas.style.cursor = (isOnMe(e.clientX, e.clientY) || snowPiles.pick(ndc, camera)) ? 'pointer' : '';
   }
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
@@ -866,6 +868,7 @@ canvas.addEventListener('pointermove', (e) => {
     press.dragging = true;
     // 터치로 꾹 누르기 전에 끌면 → 카메라 회전으로 전환
     if (press.touch && press.kind === 'snow' && !press.started) press.kind = 'camera';
+    if (press.touch && press.kind === 'poke') { cancelPoke(); press.kind = 'camera'; } // 내 떼리앙 위에서 끌어도 카메라 회전
   }
   if (press.kind === 'camera' && press.dragging) {
     state.camYaw -= dx * 0.006;
@@ -879,7 +882,9 @@ function endPointer(e, cancelled) {
   const p = press;
   press = null;
   if (!p || !state.playing) return;
-  if (p.kind === 'snow') {
+  if (p.kind === 'poke') {
+    if (cancelled) cancelPoke(); else endPoke();
+  } else if (p.kind === 'snow') {
     if (p.started) endAction(cancelled);                        // 꾹 누르기 끝 → 던지기/모으기 취소
     else if (!cancelled && (!p.dragging || !p.touch)) moveTo(e.clientX, e.clientY); // 짧은 클릭 → 이동
   } else if (p.kind === 'move' && !p.dragging && !cancelled) {
@@ -888,6 +893,48 @@ function endPointer(e, cancelled) {
 }
 canvas.addEventListener('pointerup', (e) => endPointer(e, false));
 canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
+
+// ─────────────────────────────────────────────
+// 내 떼리앙 누르기: 짧게 탭 → "떼" (톡), 오래 눌렀다 떼기 → "떼~" (꾹 눌렸다 띠용)
+// 다른 사람에게도 보이고 들림 (서버가 'poke'를 전해줌)
+// ─────────────────────────────────────────────
+const pokeA = new THREE.Vector3(), pokeB = new THREE.Vector3(), pokeC = new THREE.Vector3();
+function toScreen(v) { v.project(camera); return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight, z: v.z }; }
+// 화면의 (x, y)가 내 떼리앙 몸 위인지: 발~머리를 잇는 선에서 몸 두께(화면 픽셀)만큼 안쪽이면 OK
+function isOnMe(x, y) {
+  if (!state.playing || !player.visible) return false;
+  const top = myTop();
+  const r = Math.max(0.45, (state.dims?.rx || 0.4) * 1.05);
+  const a = toScreen(pokeA.copy(player.position).setY(0.1));
+  const b = toScreen(pokeB.copy(player.position).setY(top * 0.95));
+  if (a.z > 1 || b.z > 1) return false;
+  pokeC.set(Math.cos(state.camYaw), 0, -Math.sin(state.camYaw)).multiplyScalar(r).add(player.position).setY(top * 0.5);
+  const c = toScreen(pokeC);
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const rad = Math.max(18, Math.hypot(c.x - mx, c.y - my)); // 폰에서 너무 작으면 누르기 어려워서 최소 18px
+  const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / L));
+  return Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t)) <= rad;
+}
+let lastPokeAt = 0, pokeCombo = 0;
+function startPoke() {
+  pokePress(state);
+  net?.send({ t: 'poke', p: 1 });
+}
+function endPoke() {
+  const long = state.pokeHeld >= LONG_POKE;
+  pokeRelease(state, long);
+  const now = performance.now();
+  pokeCombo = !long && now - lastPokeAt < 400 ? pokeCombo + 1 : 0; // 빠르게 연달아 누르면 조금씩 높아짐
+  lastPokeAt = now;
+  playTte({ long, combo: pokeCombo });
+  net?.send({ t: 'poke', p: 0, l: long ? 1 : 0, c: pokeCombo });
+  count(long ? 'tte_long' : 'tte');
+}
+function cancelPoke() {
+  pokeRelease(state, false, true);
+  net?.send({ t: 'poke', p: 0, s: 1 });
+}
 
 function groundPointAt(x, y) {
   ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
@@ -1324,6 +1371,7 @@ function tryKnockDown(dir) {
 function knockDown(dir) {
   count('times_hit');
   endAction(true);
+  if (press?.kind === 'poke') { cancelPoke(); press = null; }
   state.target = null;
   state.down = { dir, until: performance.now() + MIN_DOWN_TIME }; // 최소 0.5초는 강제로 누워 있음
   state.dropT = 1;
@@ -1670,6 +1718,14 @@ function makeNet() {
     onState: (m) => remotes.update(m),
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onPile: (m) => snowPiles.apply(m),
+    onPoke: (m) => {
+      const at = remotes.poke(m);
+      if (!at || m.p || m.s) return;
+      // 다른 떼리앙의 "떼": 3m 안은 70%, 멀어질수록 작아져서 16m부터 안 들림
+      const d = at.distanceTo(player.position);
+      const vol = 0.7 * Math.max(0, Math.min(1, (16 - d) / 13));
+      playTte({ long: !!m.l, combo: Math.min(4, Number(m.c) || 0), volume: vol, who: m.id });
+    },
     onThrow: (m) => {
       remotes.thrown(m.id);
       snowballs.throwBall({ owner: String(m.id), from: new THREE.Vector3(m.fx, m.fy, m.fz), velocity: new THREE.Vector3(m.vx, m.vy, m.vz), size: ballSizeOf(remotes.charOf(m.id)) });

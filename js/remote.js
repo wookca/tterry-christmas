@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { animateBody } from './anim.js';
+import { animateBody, pokePress, pokeRelease } from './anim.js';
 import { makeBallMesh } from './snowball.js';
 import { enableOutline } from './outline.js';
 import { ballSizeOf } from './abilities.js';
@@ -98,6 +98,18 @@ export class RemotePlayers {
 
   clear() {
     for (const id of [...this.map.keys()]) this.remove(id);
+  }
+
+  // 다른 떼리앙이 자기 떼리앙을 누름/뗌. 들리는 거리용으로 위치를 돌려줌
+  poke(m) {
+    const r = this.map.get(m.id);
+    if (!r) return null;
+    if (m.p) pokePress(r.anim);
+    else {
+      if (!r.anim.pokeHold) pokePress(r.anim); // 누름 신호를 놓쳤어도 떼는 모션은 보이게
+      pokeRelease(r.anim, !!m.l, !!m.s);
+    }
+    return r.root.position;
   }
 
   charOf(id) { return this.map.get(id)?.char; }

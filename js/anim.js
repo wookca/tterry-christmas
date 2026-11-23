@@ -42,6 +42,9 @@ export function animateBody(body, st, dt, moving, gathering) {
     body.rotation.y = 0;
   }
 
+  // 떼리앙 누르기: 누르는 동안 꾹 눌리고, 떼면 띠용 늘어났다 출렁이며 돌아옴
+  pokeMotion(body, st, dt);
+
   // 눈에 맞아 쓰러지기 (fallDir 1: 앞으로, -1: 뒤로). 발을 축으로 눕고, 몸 두께만큼 살짝 띄움
   if (st.fall === undefined) st.fall = 0;
   if (st.fallTarget === undefined) st.fallTarget = 0;
@@ -64,4 +67,68 @@ export function animateBody(body, st, dt, moving, gathering) {
     const bounce = Math.abs(Math.sin(t * Math.PI * 2.2)) * (1 - t);
     body.position.y += (1 - t) * (1 - t) * 3 + bounce * 0.6;
   }
+}
+
+// ─────────────────────────────────────────────
+// 떼리앙 누르기 모션 (내 떼리앙 / 다른 플레이어 공통)
+// st.pokeHold: 누르고 있음, st.pokeHeld: 누른 시간(초)
+// pokePress(st) / pokeRelease(st, long) 으로 시작·끝. 용수철처럼 움직임 (s > 0: 눌림, s < 0: 늘어남)
+// ─────────────────────────────────────────────
+export const LONG_POKE = 0.32; // 이보다 오래 누르면 '길게 누르기' ("떼~")
+export function pokePress(st) {
+  st.pokeHold = true;
+  st.pokeHeld = 0;
+  st.pokeV = (st.pokeV || 0) + 3; // 누르는 순간 꾹
+}
+export function pokeRelease(st, long, silent = false) {
+  if (!st.pokeHold) return;
+  st.pokeHold = false;
+  if (silent) return;            // 그냥 놓기 (카메라 돌리기로 바뀜 등): 천천히 돌아옴
+  st.pokeLong = long;
+  st.pokeWob = long ? 1 : 0.5;    // 떼고 나서 좌우로 흔들리는 정도
+  st.pokeWobT = 0;
+  st.pokeV = (st.pokeV || 0) - (long ? 9 : 6); // 띠용 위로 튀어 오름
+}
+function pokeMotion(body, st, dt) {
+  if (st.pokeS === undefined) { st.pokeS = 0; st.pokeV = 0; st.pokeHold = false; st.pokeWob = 0; }
+  if (!st.pokeHold && Math.abs(st.pokeS) < 0.001 && Math.abs(st.pokeV) < 0.01 && st.pokeWob < 0.01) { st.pokeS = 0; st.pokeV = 0; return; }
+  let target = 0, k, c;
+  if (st.pokeHold) {
+    st.pokeHeld += dt;
+    // 짧게 누르면 0.2만큼, 오래 누를수록 더 깊게(최대 0.34) 꾹
+    target = 0.2 + Math.min(1, Math.max(0, st.pokeHeld - 0.15) / 0.6) * 0.14;
+    k = 700; c = 40;                     // 누를 땐 묵직하게
+  } else if (st.pokeLong) {
+    k = 420; c = 7;                      // 길게 누르고 떼면: 크게 늘어났다 오래 출렁
+  } else {
+    k = 900; c = 14;                     // 짧게 탭: 톡 튀고 금방 멈춤
+  }
+  const n = Math.ceil(dt / 0.004);       // 작게 나눠 계산해야 튀지 않음
+  const h = dt / n;
+  for (let i = 0; i < n; i++) {
+    st.pokeV += (-k * (st.pokeS - target) - c * st.pokeV) * h;
+    st.pokeS += st.pokeV * h;
+  }
+  st.pokeS = Math.max(-0.45, Math.min(0.42, st.pokeS));
+  const s = st.pokeS;
+  // 위아래로 눌리면 옆으로 퍼짐 (부피를 비슷하게)
+  body.scale.y *= 1 - s;
+  const side = 1 + s * 0.55;
+  body.scale.x *= side;
+  body.scale.z *= side;
+  // 오래 누르고 있으면 힘을 모으듯 부들부들
+  if (st.pokeHold && st.pokeHeld > LONG_POKE) {
+    const tr = Math.min(1, (st.pokeHeld - LONG_POKE) / 0.4);
+    const t = performance.now() * 0.001;
+    body.rotation.z += Math.sin(t * 55) * 0.025 * tr;
+    body.scale.x *= 1 + Math.sin(t * 47) * 0.012 * tr;
+  }
+  // 늘어날 때 살짝 붕 떠오름 (길게 누르면 더 높이)
+  if (s < 0) body.position.y += -s * (st.pokeLong ? 0.9 : 0.35);
+  // 떼고 나서 좌우로 흔들흔들
+  if (st.pokeWob > 0.01) {
+    st.pokeWobT += dt;
+    st.pokeWob *= Math.exp(-dt * (st.pokeLong ? 3 : 6));
+    body.rotation.z += Math.sin(st.pokeWobT * (st.pokeLong ? 16 : 22)) * 0.09 * st.pokeWob;
+  } else st.pokeWob = 0;
 }

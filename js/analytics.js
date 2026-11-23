@@ -7,7 +7,7 @@ export function track(name, params = {}) {
   gtag('event', name, params);
 }
 
-const counts = { throws: 0, hits_given: 0, times_hit: 0, pile_pickups: 0 };
+const counts = { throws: 0, hits_given: 0, times_hit: 0, pile_pickups: 0, tte: 0, tte_long: 0 };
 const once = new Set();
 let playMs = 0, playingSince = 0, lastFlushPlay = 0, wantPlaying = false;
 let ctx = {}; // 요약에 같이 붙일 정보 (떼리앙, 채널 등)

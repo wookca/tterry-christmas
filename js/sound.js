@@ -161,3 +161,63 @@ export function playShatter(volume = 1) {
   crunch({ rate: 0.85 + Math.random() * 0.1, vol: v, len: 0.2, cutoff: 6500, fade: 0.1 });
   crunch({ rate: 1.45 + Math.random() * 0.2, vol: v * 0.6, len: 0.12, cutoff: 9000, delay: 0.012, fade: 0.06 });
 }
+
+// ─────────────────────────────────────────────
+// 떼리앙 목소리: "떼" (가이드 음원에서 잘라 둔 짧은 소리 5개) + 길게 누르면 "떼~"
+// 빠르게 여러 번 누르면 앞 소리를 아주 짧게 줄이고 바로 다음 "떼" → "떼떼떼"
+// ─────────────────────────────────────────────
+const TTE_FILES = Array.from({ length: 5 }, (_, i) => `sounds/tte_0${i + 1}.mp3`);
+const TTE_LONG_FILE = 'sounds/tte_long.mp3';
+let ttes = null, tteLong = null;
+function loadVoice() {
+  if (ttes || !ctx) return;
+  ttes = [];
+  const get = (url) => fetch(url).then((r) => r.arrayBuffer())
+    .then((b) => new Promise((ok, bad) => ctx.decodeAudioData(b, ok, bad)));
+  for (const url of TTE_FILES) get(url).then((buf) => ttes.push(buf)).catch((e) => console.warn('떼 소리 불러오기 실패', url, e));
+  get(TTE_LONG_FILE).then((buf) => { tteLong = buf; }).catch((e) => console.warn('떼~ 소리 불러오기 실패', e));
+}
+window.addEventListener('pointerdown', () => { if (ctx) loadVoice(); }, { passive: true });
+
+const TTE_VOL = 0.55;
+const voices = new Map(); // 누구 목소리인지 (내 것: 'me') → 지금 나는 소리. 한 떼리앙은 한 번에 한 소리만
+let lastTte = -1;
+let remoteTte = 0;
+// long: 길게 눌렀다 뗀 "떼~", volume: 0~1 (다른 떼리앙은 거리만큼 줄임), combo: 연달아 누른 횟수 (살짝 높아짐)
+export function playTte({ long = false, volume = 1, combo = 0, who = 'me' } = {}) {
+  if (!on || !ctx || ctx.state !== 'running' || volume <= 0.02) return;
+  loadVoice();
+  let buf;
+  if (long) buf = tteLong;
+  else if (ttes.length) {
+    let k = Math.floor(Math.random() * ttes.length);
+    if (k === lastTte && ttes.length > 1) k = (k + 1) % ttes.length; // 같은 소리 연속 안 나게
+    lastTte = k;
+    buf = ttes[k];
+  }
+  if (!buf) return;
+  const mine = who === 'me';
+  if (!mine && !voices.has(who) && remoteTte >= 4) return; // 다른 떼리앙 소리는 동시에 4개까지
+  const t = ctx.currentTime;
+  const prev = voices.get(who);
+  if (prev) { // 앞 "떼"는 0.025초 만에 줄이고 멈춤 → 또박또박 "떼떼"
+    prev.g.gain.cancelScheduledValues(t);
+    prev.g.gain.setValueAtTime(prev.g.gain.value, t);
+    prev.g.gain.linearRampToValueAtTime(0, t + 0.025);
+    try { prev.src.stop(t + 0.03); } catch {}
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  // 높이: 매번 ±3%, 연달아 누르면 조금씩 올라감 (최대 +10%). 떼~는 살짝 낮게 시작
+  src.playbackRate.value = (long ? 0.97 : 1) * (0.97 + Math.random() * 0.06) * (1 + Math.min(combo, 4) * 0.025);
+  const g = ctx.createGain();
+  g.gain.value = TTE_VOL * volume * (long ? 1 : 0.9 + Math.random() * 0.15);
+  src.connect(g).connect(master);
+  src.start(t);
+  const v = { src, g };
+  if (!mine && !prev) remoteTte++;
+  voices.set(who, v);
+  src.onended = () => {
+    if (voices.get(who) === v) { voices.delete(who); if (!mine) remoteTte--; }
+  };
+}
