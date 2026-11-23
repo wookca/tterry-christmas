@@ -78,16 +78,16 @@ export const LONG_POKE = 0.32; // 이보다 오래 누르면 '길게 누르기' 
 export function pokePress(st) {
   st.pokeHold = true;
   st.pokeHeld = 0;
-  st.pokeV = (st.pokeV || 0) + 3; // 누르는 순간 꾹
+  st.pokeV = (st.pokeV || 0) + 1.5; // 누르는 순간 꾹
 }
 export function pokeRelease(st, long, silent = false) {
   if (!st.pokeHold) return;
   st.pokeHold = false;
   if (silent) return;            // 그냥 놓기 (카메라 돌리기로 바뀜 등): 천천히 돌아옴
   st.pokeLong = long;
-  st.pokeWob = long ? 1 : 0.5;    // 떼고 나서 좌우로 흔들리는 정도
+  st.pokeWob = long ? 1 : 0.4;    // 떼고 나서 좌우로 흔들리는 정도
   st.pokeWobT = 0;
-  st.pokeV = (st.pokeV || 0) - (long ? 9 : 6); // 띠용 위로 튀어 오름
+  st.pokeV = (st.pokeV || 0) - (long ? 4.5 : 2.5); // 띠용 위로 튀어 오름
 }
 function pokeMotion(body, st, dt) {
   if (st.pokeS === undefined) { st.pokeS = 0; st.pokeV = 0; st.pokeHold = false; st.pokeWob = 0; }
@@ -95,13 +95,13 @@ function pokeMotion(body, st, dt) {
   let target = 0, k, c;
   if (st.pokeHold) {
     st.pokeHeld += dt;
-    // 짧게 누르면 0.2만큼, 오래 누를수록 더 깊게(최대 0.34) 꾹
-    target = 0.2 + Math.min(1, Math.max(0, st.pokeHeld - 0.15) / 0.6) * 0.14;
+    // 짧게 누르면 0.12만큼, 오래 누를수록 더 깊게(최대 0.2) 꾹 (2026-11-23 너무 젤리 같다고 해서 약하게)
+    target = 0.12 + Math.min(1, Math.max(0, st.pokeHeld - 0.15) / 0.6) * 0.08;
     k = 700; c = 40;                     // 누를 땐 묵직하게
   } else if (st.pokeLong) {
-    k = 420; c = 7;                      // 길게 누르고 떼면: 크게 늘어났다 오래 출렁
+    k = 500; c = 28;                     // 길게 누르고 떼면: 조금 더 늘어났다 한두 번 출렁
   } else {
-    k = 900; c = 14;                     // 짧게 탭: 톡 튀고 금방 멈춤
+    k = 900; c = 40;                    // 짧게 탭: 톡 튀고 바로 멈춤
   }
   const n = Math.ceil(dt / 0.004);       // 작게 나눠 계산해야 튀지 않음
   const h = dt / n;
@@ -120,15 +120,15 @@ function pokeMotion(body, st, dt) {
   if (st.pokeHold && st.pokeHeld > LONG_POKE) {
     const tr = Math.min(1, (st.pokeHeld - LONG_POKE) / 0.4);
     const t = performance.now() * 0.001;
-    body.rotation.z += Math.sin(t * 55) * 0.025 * tr;
-    body.scale.x *= 1 + Math.sin(t * 47) * 0.012 * tr;
+    body.rotation.z += Math.sin(t * 55) * 0.014 * tr;
+    body.scale.x *= 1 + Math.sin(t * 47) * 0.006 * tr;
   }
   // 늘어날 때 살짝 붕 떠오름 (길게 누르면 더 높이)
-  if (s < 0) body.position.y += -s * (st.pokeLong ? 0.9 : 0.35);
+  if (s < 0) body.position.y += -s * (st.pokeLong ? 0.5 : 0.2);
   // 떼고 나서 좌우로 흔들흔들
   if (st.pokeWob > 0.01) {
     st.pokeWobT += dt;
-    st.pokeWob *= Math.exp(-dt * (st.pokeLong ? 3 : 6));
-    body.rotation.z += Math.sin(st.pokeWobT * (st.pokeLong ? 16 : 22)) * 0.09 * st.pokeWob;
+    st.pokeWob *= Math.exp(-dt * (st.pokeLong ? 5 : 9));
+    body.rotation.z += Math.sin(st.pokeWobT * (st.pokeLong ? 16 : 22)) * 0.04 * st.pokeWob;
   } else st.pokeWob = 0;
 }
