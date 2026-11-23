@@ -303,3 +303,5 @@ html, body {
   .log-panel { left: 8px; top: 48px; width: 320px; padding: 8px 10px 6px; }
   .log-list { font-size: 12px; }
 }
+/* 롱치떼링은 키가 커서 그림을 회색 네모면 밖(위·아래)으로 조금 넘치게 크게 (카드 테두리선은 안 넘게, 2026-11-23) */
+.card[data-id="longchi"] .art { inset: -5px -4px -3px; background-size: auto 100%; }
