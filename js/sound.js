@@ -55,12 +55,13 @@ function startBgm() {
       ctx.createMediaElementSource(bgmEl).connect(bgmGain).connect(ctx.destination);
     } catch { bgmGain = null; bgmEl.volume = BGM_VOLUME; }
   }
-  if (bgmOn && !document.hidden && bgmEl.paused) bgmEl.play().catch(() => {});
+  if (bgmOn && bgmEl.paused) bgmEl.play().catch(() => {});
 }
+// 다른 탭으로 가도 BGM은 계속 (끄고 싶으면 음표 버튼). 돌아왔을 때 멈춰 있으면 다시 재생
 document.addEventListener('visibilitychange', () => {
-  if (!bgmEl) return;
-  if (document.hidden) bgmEl.pause();
-  else if (bgmOn) bgmEl.play().catch(() => {});
+  if (!bgmEl || document.hidden) return;
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+  if (bgmOn && bgmEl.paused) bgmEl.play().catch(() => {});
 });
 export function isBgmOn() { return bgmOn; }
 export function setBgmOn(v) {
