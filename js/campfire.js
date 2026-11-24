@@ -57,18 +57,32 @@ function blobGeometry(radius, wobble, seed, seg = 56) {
   const rand = rng(seed);
   const waves = [2, 3, 5, 7].map((k) => ({ k, a: (rand() - 0.3) * wobble / k * 2, p: rand() * Math.PI * 2 }));
   const shape = new THREE.Shape();
+  const radii = []; // 각도별 실제 가장자리 반지름 (바닥 모양 그대로 판정할 때 씀)
   for (let i = 0; i <= seg; i++) {
     const t = (i / seg) * Math.PI * 2;
     let r = 1;
     for (const w of waves) r += w.a * Math.sin(w.k * t + w.p);
     r *= radius * (1 + (rand() - 0.5) * wobble * 0.25);
     if (i === seg) { shape.closePath(); break; }
+    radii.push(r);
     const x = Math.cos(t) * r, y = Math.sin(t) * r;
     if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
   }
   const g = new THREE.ShapeGeometry(shape);
   g.rotateX(-Math.PI / 2);
+  g.userData.radii = radii;
   return g;
+}
+
+// 울퉁불퉁한 바닥 모양 안인지: 각도에 맞는 가장자리 반지름과 비교 (화면에 보이는 경계 그대로)
+// 바닥은 x,y 평면에서 만든 뒤 눕혔으므로 월드 z = -y
+function insideBlob(radii, x, z) {
+  const n = radii.length;
+  let t = Math.atan2(-z, x) / (Math.PI * 2) * n;
+  if (t < 0) t += n;
+  const i = Math.floor(t) % n, f = t - Math.floor(t);
+  const edge = radii[i] * (1 - f) + radii[(i + 1) % n] * f;
+  return Math.hypot(x, z) < edge;
 }
 
 export class Campfire {
@@ -170,6 +184,7 @@ export class Campfire {
     const flat = (color, offset) => new THREE.MeshStandardMaterial({ color, roughness: 1, polygonOffset: true, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
     const slush = new THREE.Mesh(blobGeometry(MELT_R, 0.16, 77), flat(0xd5dde6, -1));
     const dirt = new THREE.Mesh(blobGeometry(DIRT_R, 0.28, 31), flat(0xd6c6ae, -2));
+    this.dirtRadii = dirt.geometry.userData.radii;
     for (const [m, y] of [[slush, 0.001], [dirt, 0.002]]) {
       m.scale.setScalar(1 / SIZE);   // 모양은 실제 크기(m)로 만들었으니 모닥불 배율을 되돌림
       m.position.y = y / SIZE;
@@ -272,6 +287,11 @@ export class Campfire {
   // 눈 녹은 땅 위인지 (손에 든 눈덩이가 녹고, 눈을 모을 수 없음)
   inMeltZone(v, extra = 0) {
     return this.group.visible && Math.hypot(v.x, v.z) < MELT_R + extra;
+  }
+
+  // 갈색 흙바닥 위인지: 여기 서 있는 떼리앙은 눈덩이에 안 맞음 (공이 그냥 지나감)
+  inSafeZone(v) {
+    return this.group.visible && insideBlob(this.dirtRadii, v.x, v.z);
   }
 
   // 눈덩이가 불에 닿았는지

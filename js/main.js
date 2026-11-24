@@ -1380,13 +1380,14 @@ function checkSnowballHits() {
       return true;
     }
     // 내가 맞음 (내 공은 제외)
-    if (ball.owner !== 'me' && state.playing && player.visible && hitsBody(pos, player.position, state.dims, ball)) {
+    // 모닥불 갈색 흙바닥에 서 있으면 아무도 안 맞음: 공은 부서지지 않고 그냥 지나감
+    if (ball.owner !== 'me' && state.playing && player.visible && !campfire.inSafeZone(player.position) && hitsBody(pos, player.position, state.dims, ball)) {
       tryKnockDown(fallDirFor(ball.velocity, state.yaw));
       return true;
     }
     // 다른 사람이 맞음: 눈덩이가 부서지고, 내가 던진 공이면 맞은 사람에게 알려줌 (그 사람이 쓰러짐)
     for (const r of remotes.map.values()) {
-      if (String(r.id) === ball.owner || !hitsBody(pos, r.root.position, r.model?.userData.dims, ball)) continue;
+      if (String(r.id) === ball.owner || campfire.inSafeZone(r.root.position) || !hitsBody(pos, r.root.position, r.model?.userData.dims, ball)) continue;
       if (ball.owner === 'me') { count('hits_given'); addStat('hits'); } // 지떼링 해금용 맞힌 수 (js/eggs.js)
       if (ball.owner === 'me') net?.send({ t: 'hit', id: r.id, d: fallDirFor(ball.velocity, r.yaw) > 0 ? 1 : 2 });
       return true;
@@ -1400,6 +1401,7 @@ function fallDirFor(velocity, yaw) {
 }
 function tryKnockDown(dir) {
   if (!state.playing || state.down || performance.now() < state.immuneUntil) return;
+  if (campfire.inSafeZone(player.position)) return; // 갈색 흙바닥 위에서는 안 쓰러짐
   knockDown(dir);
 }
 function knockDown(dir) {
