@@ -25,6 +25,11 @@ const RE_WINDOW = 15000;  // 다시 접속(떼리앙·닉네임 바꾸기, 잠�
 // 게임 화면 버전: 이보다 옛날 화면(또는 버전을 안 보내는 아주 옛 화면)은 접속을 거절 → 브라우저를 오래 켜 둔 옛 화면이 계속 들어오는 것 막기
 // 게임 쪽 js/config.js CLIENT_VER 와 맞춤. 옛 화면을 모두 내보내고 싶을 때 둘 다 1 올리고 배포
 const MIN_CLIENT = 1;
+// 위치 묶어 보내기: 움직임(state)은 바로 보내지 않고 모아 뒀다가 0.1초마다 한 번에 보냄 → 서버·폰 부담이 크게 줄어듦
+// (던지기·누르기·맞음은 바로 보냄. 그 전에 모아 둔 위치를 먼저 내보내서 순서가 꼬이지 않게)
+const TICK_MS = 100;
+// 묶음 한 줄: [id, x, z, yaw, 상태 비트, vx, vz]  상태 비트 = m | g<<1 | b<<2 (2비트) | a<<4 | d<<5 (2비트)
+const packState = (p) => [p.id, p.x, p.z, p.yaw, (p.m | (p.g << 1) | (p.b << 2) | (p.a << 4) | ((p.d || 0) << 5)), p.vx || 0, p.vz || 0];
 const cleanName = (v) => String(v || '').replace(/[<>&"'`]/g, '').trim().slice(0, 12);
 
 // 접속을 허용할 주소인지 확인 (다른 사이트에서 몰래 붙는 것 방지)
@@ -54,7 +59,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 11, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 12, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -103,6 +108,8 @@ export class Channel extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.nextId = 1;
+    this.pending = new Map(); // 아직 안 보낸 움직임 (id → 상태)
+    this.tick = null;
     // 잠들었다 깨어난 경우, 붙어있는 소켓에서 id 최대값을 복구
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment();
@@ -144,6 +151,7 @@ export class Channel extends DurableObject {
 
   drop(ws, a) {
     a.joined = false;
+    this.pending.delete(a.id);
     this.logLeave(a);
     try { ws.serializeAttachment(a); } catch { /* 닫힌 소켓 */ }
     try { ws.close(4000, 'timeout'); } catch { /* 이미 닫힘 */ }
@@ -240,6 +248,30 @@ export class Channel extends DurableObject {
     }
   }
 
+  // 모아 둔 움직임을 한 번에 보냄. 새 화면(bv)은 묶음 하나, 옛 화면은 예전처럼 한 사람씩
+  flush() {
+    if (this.tick) { clearTimeout(this.tick); this.tick = null; }
+    if (!this.pending.size) return;
+    const list = [...this.pending.values()];
+    this.pending.clear();
+    const rows = list.map(packState);
+    const one = new Map(list.map((p) => [p.id, JSON.stringify({ t: 'state', id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d })]));
+    for (const { ws, p } of [...this.players(), ...this.watchers()]) {
+      try {
+        if (p.bv) {
+          const s = rows.filter((r) => r[0] !== p.id); // 내 것은 빼고
+          if (s.length) ws.send(JSON.stringify({ t: 'states', s }));
+        } else {
+          for (const [id, msg] of one) if (id !== p.id) ws.send(msg);
+        }
+      } catch { /* 끊긴 소켓 */ }
+    }
+  }
+  queueState(p) {
+    this.pending.set(p.id, { id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d, vx: p.vx, vz: p.vz });
+    if (!this.tick) this.tick = setTimeout(() => { this.tick = null; this.flush(); }, TICK_MS);
+  }
+
   publicState(p) {
     return { id: p.id, name: p.name, char: p.char, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d || 0 };
   }
@@ -262,6 +294,7 @@ export class Channel extends DurableObject {
         // 떼리앙을 고르는 동안 미리 접속: 채널 모습만 알려주고, 다른 사람에게는 아직 안 알림
         if (p.joined) return;
         p.watch = true;
+        p.bv = msg.bv ? 1 : 0; // 위치 묶음을 알아듣는 화면
         ws.serializeAttachment(p);
         ws.send(JSON.stringify({ t: 'peek', ch: p.ch, players: this.players().map((o) => this.publicState(o.p)), max: maxFor(p.ch), piles: this.piles.filter((q) => q.up).map(publicPile) }));
         return;
@@ -269,6 +302,7 @@ export class Channel extends DurableObject {
       case 'hello': {
         if (p.joined) return;
         p.watch = false;
+        if (msg.bv) p.bv = 1;
         if (this.players().length >= maxFor(p.ch)) {
           ws.send(JSON.stringify({ t: 'full', ch: p.ch }));
           ws.close(4001, 'channel full');
@@ -302,8 +336,9 @@ export class Channel extends DurableObject {
         p.b = msg.b === 2 ? 2 : msg.b ? 1 : 0; // 눈덩이 들고 있음 (2: 양손에 하나씩, 치떼링)
         p.a = msg.a ? 1 : 0; // 조준 중
         p.d = msg.d === 1 || msg.d === 2 ? msg.d : 0; // 눈에 맞아 쓰러짐 (1: 앞으로, 2: 뒤로)
+        p.vx = r2(num(msg.vx, -15, 15)); p.vz = r2(num(msg.vz, -15, 15)); // 걷는 속도 → 받는 쪽이 다음 위치를 미리 그려서 부드럽게
         ws.serializeAttachment(p);
-        this.broadcast({ t: 'state', id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d }, p.id);
+        this.queueState(p);
         return;
       }
       case 'throw': {
@@ -312,6 +347,7 @@ export class Channel extends DurableObject {
         if (now - p.lastThrow < 150) return; // 너무 빠른 연속 던지기 방지 (치떼링은 두 개를 잇달아 던짐)
         p.lastThrow = now;
         ws.serializeAttachment(p);
+        this.flush(); // 던지기 전 움직임을 먼저
         const t = {
           t: 'throw', id: p.id,
           fx: r2(num(msg.fx, -50, 50)), fy: r2(num(msg.fy, 0, 5)), fz: r2(num(msg.fz, -50, 50)),
@@ -337,6 +373,7 @@ export class Channel extends DurableObject {
         if (!p.joined) return;
         const target = Number(msg.id);
         const d = msg.d === 1 || msg.d === 2 ? msg.d : 1;
+        this.flush();
         for (const o of this.players()) {
           if (o.p.id !== target || o.p.id === p.id) continue;
           try { o.ws.send(JSON.stringify({ t: 'hit', by: p.id, d })); } catch { /* 끊긴 소켓 */ }
@@ -351,6 +388,7 @@ export class Channel extends DurableObject {
         if (p.pokeN === 1) p.pokeAt = now;
         try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ }
         if (p.pokeN > 30) return;
+        this.flush();
         this.broadcast({ t: 'poke', id: p.id, p: msg.p ? 1 : 0, l: msg.l ? 1 : 0, s: msg.s ? 1 : 0, c: Math.max(0, Math.min(4, Number(msg.c) || 0)) }, p.id);
         return;
       }
@@ -373,6 +411,7 @@ export class Channel extends DurableObject {
     const p = ws.deserializeAttachment();
     if (!p || !p.joined) return;
     p.joined = false;
+    this.pending.delete(p.id);
     try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ }
     await this.ensureLog();
     this.logLeave(p);

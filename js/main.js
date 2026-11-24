@@ -1774,18 +1774,31 @@ function makeNet() {
   });
 }
 
-// 내 상태를 0.1초마다 (바뀌었을 때만, 아니면 2초마다) 보냄
-let lastSent = null, lastSendAt = 0;
+// 내 상태를 0.2초마다 (바뀌었을 때만, 아니면 2초마다) 보냄. 걷는 속도(vx, vz)도 함께 → 받는 쪽이 그 사이를 부드럽게 그림
+// 옛 서버(버전 12 전)는 속도를 안 전해 주므로 예전처럼 0.1초마다
+let lastSent = null, lastSendAt = 0, sendEvery = 200, velFrom = null, lastFlags = '';
 function sendState() {
   if (!net || !net.connected || !state.playing) return;
   const now = performance.now();
-  if (now - lastSendAt < 100) return;
+  // 쓰러짐·눈덩이 들기·조준 같은 상태가 바뀌면 기다리지 않고 바로 (0.05초 간격까지)
+  const flags = `${state.walk > 0.5 ? 1 : 0}${state.gathering ? 1 : 0}${state.hasBall ? (state.ball2 ? 2 : 1) : 0}${state.aiming ? 1 : 0}${state.down ? (state.down.dir > 0 ? 1 : 2) : 0}`;
+  const wait = flags !== lastFlags ? 50 : sendEvery;
+  if (now - lastSendAt < wait) return;
+  lastFlags = flags;
+  let vx = 0, vz = 0;
+  if (velFrom && now - velFrom.t > 30) {
+    const k = 1000 / (now - velFrom.t);
+    vx = (player.position.x - velFrom.x) * k; vz = (player.position.z - velFrom.z) * k;
+    if (Math.hypot(vx, vz) > 12 || now - velFrom.t > 2500) { vx = 0; vz = 0; } // 순간이동(채널 이동·다시 태어남)이나 오래 멈춤
+  }
+  velFrom = { t: now, x: player.position.x, z: player.position.z };
   const st = {
     t: 'state',
     x: Math.round(player.position.x * 100) / 100, z: Math.round(player.position.z * 100) / 100,
     yaw: Math.round(state.yaw * 100) / 100,
     m: state.walk > 0.5 ? 1 : 0, g: state.gathering ? 1 : 0, b: state.hasBall ? (state.ball2 ? 2 : 1) : 0, a: state.aiming ? 1 : 0,
     d: state.down ? (state.down.dir > 0 ? 1 : 2) : 0,
+    vx: Math.round(vx * 100) / 100, vz: Math.round(vz * 100) / 100,
   };
   const key = JSON.stringify(st);
   if (key === lastSent && now - lastSendAt < 2000) return;
@@ -1821,6 +1834,7 @@ async function init() {
 
   // 서버(Cloudflare)에서 열었으면 온라인 모드
   const server = await detectServer();
+  if (server && (server.version || 1) < 12) sendEvery = 100;
   if (server && (server.version || 1) < 2) console.warn('[Tterry] 서버가 옛날 버전이에요. deploy.bat을 다시 실행하면 쓰러지기가 다른 사람에게도 보여요.');
   state.online = !!server;
   $('nameRow').classList.remove('hidden');

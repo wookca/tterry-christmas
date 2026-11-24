@@ -67,7 +67,7 @@ export class Net {
   sendHello(ws) {
     // re: 이 채널에 바로 전에 쓰던 닉네임 (떼리앙·닉네임 바꾸기나 잠깐 끊겨서 다시 접속할 때) → 서버 기록에서 "나감+들어옴" 대신 "닉네임 변경"으로
     const re = this.lastCh === this.ch ? this.lastName : null;
-    ws.send(JSON.stringify({ t: 'hello', ...this.hello(), sid: SESSION_ID, ...(re ? { re } : {}) }));
+    ws.send(JSON.stringify({ t: 'hello', ...this.hello(), sid: SESSION_ID, bv: 1, ...(re ? { re } : {}) }));
   }
 
   startPing(ws) {
@@ -82,7 +82,7 @@ export class Net {
     this.ws = ws;
     if (!this.watching) this.h.onStatus?.(`채널 ${this.ch} 접속 중…`);
     ws.onopen = () => {
-      if (this.watching) { ws.send('{"t":"watch"}'); this.startPing(ws); }
+      if (this.watching) { ws.send('{"t":"watch","bv":1}'); this.startPing(ws); }
       else this.sendHello(ws);
     };
     ws.onmessage = (e) => {
@@ -114,6 +114,13 @@ export class Net {
         case 'join': this.h.onJoin?.(m.p, m.re); break;
         case 'leave': this.h.onLeave?.(m.id); break;
         case 'state': this.h.onState?.(m); break;
+        case 'states':
+          // 새 서버: 0.1초 동안 모인 여러 사람의 움직임이 한 묶음으로 옴 [id, x, z, yaw, 상태 비트, vx, vz]
+          for (const r of m.s || []) {
+            const f = r[4] | 0;
+            this.h.onState?.({ id: r[0], x: r[1], z: r[2], yaw: r[3], m: f & 1, g: (f >> 1) & 1, b: (f >> 2) & 3, a: (f >> 4) & 1, d: (f >> 5) & 3, vx: r[5] || 0, vz: r[6] || 0 });
+          }
+          break;
         case 'throw': this.h.onThrow?.(m); break;
         case 'hit': this.h.onHit?.(m); break;
         case 'pile': this.h.onPile?.(m); break;

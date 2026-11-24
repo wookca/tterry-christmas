@@ -53,7 +53,7 @@ export class RemotePlayers {
 
     const r = {
       id: p.id, name: p.name || '', char: p.char, root, body, ball, ball2, label,
-      target: new THREE.Vector3(p.x, 0, p.z), yaw: p.yaw || 0, targetYaw: p.yaw || 0,
+      target: new THREE.Vector3(p.x, 0, p.z), base: new THREE.Vector3(p.x, 0, p.z), vx: 0, vz: 0, baseT: performance.now(), yaw: p.yaw || 0, targetYaw: p.yaw || 0,
       m: !!p.m, g: !!p.g, b: p.b || 0, a: !!p.a, d: p.d || 0,
       anim: { walk: 0, phase: Math.random() * 6, crouch: 0, throwT: 1, dropT: 0 },
     };
@@ -72,7 +72,13 @@ export class RemotePlayers {
   update(m) {
     const r = this.map.get(m.id);
     if (!r) return;
-    r.target.set(m.x, 0, m.z);
+    // 받은 위치 + 걷는 속도: 다음 소식이 올 때까지 그 속도로 조금 앞을 그려서 끊김 없이 (새 서버만 속도를 보냄)
+    r.base.set(m.x, 0, m.z);
+    r.target.copy(r.base);
+    r.baseT = performance.now();
+    const moving = !!m.m && !m.d;
+    r.vx = moving ? Number(m.vx) || 0 : 0;
+    r.vz = moving ? Number(m.vz) || 0 : 0;
     r.targetYaw = m.yaw;
     const fell = !r.d && !!m.d; // 방금 눈에 맞아 쓰러짐
     r.m = !!m.m; r.g = !!m.g; r.a = !!m.a; r.d = m.d || 0;
@@ -129,7 +135,12 @@ export class RemotePlayers {
   update_frame(dt) {
     const v = new THREE.Vector3();
     const w = window.innerWidth, h = window.innerHeight;
+    const now = performance.now();
     for (const r of this.map.values()) {
+      if (r.vx || r.vz) {
+        const ahead = Math.min(now - r.baseT, 300) / 1000; // 소식이 늦어도 0.3초 넘게 앞서 가지는 않음
+        r.target.set(r.base.x + r.vx * ahead, 0, r.base.z + r.vz * ahead);
+      }
       const dist = r.root.position.distanceTo(r.target);
       // 멀리 순간이동했으면 바로 이동, 아니면 부드럽게
       if (dist > 6) r.root.position.copy(r.target);
