@@ -1811,10 +1811,10 @@ function makeNet() {
       updateOnlineHud();
       requestAnimationFrame(() => requestAnimationFrame(hideEnterFade)); // 새 모습이 한 번 그려진 뒤에 걷어냄
     },
-    onJoin: (p, re) => { if (net.id) joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p); updateOnlineHud(); },
+    onJoin: (p, re) => { if (net.id) joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p, re); updateOnlineHud(); },
     onLeave: (id) => {
       const name = remotes.nameOf(id);
-      remotes.remove(id);
+      remotes.remove(id, true); // 떼리앙 변경으로 다시 접속하는 거면 사라지지 않게 잠깐 남겨 둠
       if (net.id) joinLog.leave(name, !!name && remotes.hasName(name)); // 미리 접속 중(아직 안 들어감)엔 기록 안 함
       updateOnlineHud();
     },

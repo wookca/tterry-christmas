@@ -20,12 +20,18 @@ export class RemotePlayers {
     this.getModel = getModel;     // (charId) => Promise<Object3D>
     this.labels = labelLayer;     // 이름표를 붙일 DOM 요소
     this.map = new Map();
+    // 방금 나간 떼리앙: 바로 지우지 않고 잠깐 그 자리에 남겨 둠.
+    // 떼리앙·닉네임을 바꾸면 서버에 다시 접속(나감 → 들어옴)하는데, 그 사이에 사라졌다가
+    // 하늘에서 다시 떨어지지 않도록, 곧 같은 사람(re = 예전 닉네임)이 들어오면 이어받음
+    this.ghosts = [];
   }
 
   get count() { return this.map.size; }
 
-  add(p) {
+  add(p, re) {
     if (this.map.has(p.id)) { this.update(p); return; }
+    const gi = re ? this.ghosts.findIndex((g) => g.name === re) : -1;
+    const ghost = gi >= 0 ? this.ghosts.splice(gi, 1)[0] : null;
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
@@ -58,8 +64,17 @@ export class RemotePlayers {
       anim: { walk: 0, phase: Math.random() * 6, crouch: 0, throwT: 1, dropT: 0 },
     };
     this.map.set(p.id, r);
+    if (ghost) {
+      // 같은 사람이 다시 들어옴 (떼리앙 변경 등): 등장 연출 없이 그 자리에서 이어서, 새 떼리앙을 받을 때까지 예전 모습 유지
+      r.anim.dropT = 1;
+      root.position.copy(ghost.root.position);
+      r.yaw = ghost.yaw; root.rotation.y = r.yaw;
+      if (ghost.model) { body.add(ghost.model); r.model = ghost.model; }
+      this.dropGhost(ghost);
+    }
     this.getModel(p.char).then((model) => {
-      if (!this.map.has(p.id)) return;
+      if (!this.map.has(p.id) || this.map.get(p.id) !== r) return;
+      if (r.model) body.remove(r.model); // 예전 떼리앙 모습을 새 것으로 바꿈
       const copy = model.clone(true); // 지오메트리/재질은 공유 → 메모리 절약
       copy.visible = true; // 원본이 잠깐 숨겨진 상태여도 항상 보이게
       body.add(copy);
@@ -96,16 +111,31 @@ export class RemotePlayers {
     else { r.b = 0; r.ball.visible = false; }
   }
 
-  remove(id) {
+  remove(id, linger = false) {
     const r = this.map.get(id);
     if (!r) return;
+    this.map.delete(id);
+    if (linger && r.model) {
+      // 4초 안에 같은 사람이 다시 들어오지 않으면 그때 지움
+      r.ghostTimer = setTimeout(() => this.dropGhost(r), 4000);
+      this.ghosts.push(r);
+      return;
+    }
     this.scene.remove(r.root);
     r.label.remove();
-    this.map.delete(id);
+  }
+
+  dropGhost(g) {
+    clearTimeout(g.ghostTimer);
+    const i = this.ghosts.indexOf(g);
+    if (i >= 0) this.ghosts.splice(i, 1);
+    this.scene.remove(g.root);
+    g.label.remove();
   }
 
   clear() {
     for (const id of [...this.map.keys()]) this.remove(id);
+    for (const g of [...this.ghosts]) this.dropGhost(g);
   }
 
   // 다른 떼리앙이 자기 떼리앙을 누름/뗌. 들리는 거리용으로 위치를 돌려줌
@@ -136,6 +166,13 @@ export class RemotePlayers {
     const v = new THREE.Vector3();
     const w = window.innerWidth, h = window.innerHeight;
     const now = performance.now();
+    for (const g of this.ghosts) {
+      const top = g.model?.userData.dims?.h || 1.3;
+      v.copy(g.root.position).setY(top + 0.15).project(this.camera);
+      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+      g.label.style.display = visible ? '' : 'none';
+      if (visible) g.label.style.transform = `translate(${(v.x * 0.5 + 0.5) * w}px, ${(-v.y * 0.5 + 0.5) * h}px) translate(-50%, -100%)`;
+    }
     for (const r of this.map.values()) {
       if (r.vx || r.vz) {
         const ahead = Math.min(now - r.baseT, 300) / 1000; // 소식이 늦어도 0.3초 넘게 앞서 가지는 않음
