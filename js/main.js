@@ -82,6 +82,8 @@ const CHARACTERS = [
   { id: 'ham', name: '햄떼링', ready: false },
   // 화떼링 2종 (A: 날개, B: 길쭉한 닭다리): 모델 파일이 서로 달라서 버전마다 file 을 따로 씀. 이름은 둘 다 화떼링
   { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE,
+    // 갈색(#b75715) 부위(코·볼·뒷통수 무늬, M_Nose)는 몸 위 무늬: 검은 선 없이 (바깥 윤곽선은 그대로)
+    patternOn: { M_Nose: 'M_Body' },
     variants: [
       { id: 'a', file: 'models/hwa.glb' },
       { id: 'b', file: 'models/hwa_b.glb' },
