@@ -169,27 +169,37 @@ export function playShatter(volume = 1) {
 // ─────────────────────────────────────────────
 const TTE_FILES = Array.from({ length: 5 }, (_, i) => `sounds/tte_0${i + 1}.mp3`);
 const TTE_LONG_FILE = 'sounds/tte_long.mp3';
-let ttes = null, tteLong = null;
+let ttes = null, tteLong = null, ouches = null;
+// 눈에 맞아 쓰러질 때 "떼엥" (가이드 음원의 떼를 높게 시작해 처지게 속도만 바꾼 것, 3개 중 랜덤)
+const OUCH_FILES = Array.from({ length: 3 }, (_, i) => `sounds/ouch_0${i + 1}.mp3`);
 function loadVoice() {
   if (ttes || !ctx) return;
   ttes = [];
   const get = (url) => fetch(url).then((r) => r.arrayBuffer())
     .then((b) => new Promise((ok, bad) => ctx.decodeAudioData(b, ok, bad)));
   for (const url of TTE_FILES) get(url).then((buf) => ttes.push(buf)).catch((e) => console.warn('떼 소리 불러오기 실패', url, e));
+  ouches = [];
+  for (const url of OUCH_FILES) get(url).then((buf) => ouches.push(buf)).catch((e) => console.warn('떼엥 소리 불러오기 실패', url, e));
   get(TTE_LONG_FILE).then((buf) => { tteLong = buf; }).catch((e) => console.warn('떼~ 소리 불러오기 실패', e));
 }
 window.addEventListener('pointerdown', () => { if (ctx) loadVoice(); }, { passive: true });
 
 const TTE_VOL = 0.55;
 const voices = new Map(); // 누구 목소리인지 (내 것: 'me') → 지금 나는 소리. 한 떼리앙은 한 번에 한 소리만
-let lastTte = -1;
+let lastTte = -1, lastOuch = -1;
 let remoteTte = 0;
 // long: 길게 눌렀다 뗀 "떼~", volume: 0~1 (다른 떼리앙은 거리만큼 줄임), combo: 연달아 누른 횟수 (살짝 높아짐)
-export function playTte({ long = false, volume = 1, combo = 0, who = 'me' } = {}) {
+export function playTte({ long = false, ouch = false, volume = 1, combo = 0, who = 'me' } = {}) {
   if (!on || !ctx || ctx.state === 'closed' || volume <= 0.02) return; // 막 켜는 중(suspended)이어도 예약해 두면 켜지자마자 남
   loadVoice();
   let buf;
-  if (long) buf = tteLong;
+  if (ouch) {
+    if (!ouches.length) return;
+    let k = Math.floor(Math.random() * ouches.length);
+    if (k === lastOuch && ouches.length > 1) k = (k + 1) % ouches.length;
+    lastOuch = k;
+    buf = ouches[k];
+  } else if (long) buf = tteLong;
   else if (ttes.length) {
     let k = Math.floor(Math.random() * ttes.length);
     if (k === lastTte && ttes.length > 1) k = (k + 1) % ttes.length; // 같은 소리 연속 안 나게

@@ -926,6 +926,11 @@ function isOnMe(x, y) {
   const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / L));
   return Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t)) <= rad;
 }
+// 다른 떼리앙 목소리 크기: 3m 안은 70%, 멀어질수록 작아져서 16m부터 안 들림
+function tteVolumeAt(at) {
+  const d = at.distanceTo(player.position);
+  return 0.7 * Math.max(0, Math.min(1, (16 - d) / 13));
+}
 let lastPokeAt = 0, pokeCombo = 0;
 function startPoke() {
   pokePress(state);
@@ -1381,6 +1386,7 @@ function tryKnockDown(dir) {
 }
 function knockDown(dir) {
   count('times_hit');
+  playTte({ ouch: true }); // 맞아서 "떼엥"
   endAction(true);
   if (press?.kind === 'poke') { cancelPoke(); press = null; }
   if (spaceDown) { if (state.pokeHold) cancelPoke(); spaceDown = false; }
@@ -1727,16 +1733,16 @@ function makeNet() {
       if (net.id) joinLog.leave(name, !!name && remotes.hasName(name)); // 미리 접속 중(아직 안 들어감)엔 기록 안 함
       updateOnlineHud();
     },
-    onState: (m) => remotes.update(m),
+    onState: (m) => {
+      const fellAt = remotes.update(m);
+      if (fellAt) playTte({ ouch: true, volume: tteVolumeAt(fellAt), who: m.id }); // 다른 떼리앙이 맞아 쓰러짐: "떼엥"
+    },
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onPile: (m) => snowPiles.apply(m),
     onPoke: (m) => {
       const at = remotes.poke(m);
       if (!at || m.p || m.s) return;
-      // 다른 떼리앙의 "떼": 3m 안은 70%, 멀어질수록 작아져서 16m부터 안 들림
-      const d = at.distanceTo(player.position);
-      const vol = 0.7 * Math.max(0, Math.min(1, (16 - d) / 13));
-      playTte({ long: !!m.l, combo: Math.min(4, Number(m.c) || 0), volume: vol, who: m.id });
+      playTte({ long: !!m.l, combo: Math.min(4, Number(m.c) || 0), volume: tteVolumeAt(at), who: m.id });
     },
     onThrow: (m) => {
       remotes.thrown(m.id);

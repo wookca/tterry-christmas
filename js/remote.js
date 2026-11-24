@@ -74,9 +74,11 @@ export class RemotePlayers {
     if (!r) return;
     r.target.set(m.x, 0, m.z);
     r.targetYaw = m.yaw;
+    const fell = !r.d && !!m.d; // 방금 눈에 맞아 쓰러짐
     r.m = !!m.m; r.g = !!m.g; r.a = !!m.a; r.d = m.d || 0;
     const b = m.b || 0; // 0: 없음, 1: 하나, 2: 양손에 하나씩 (치떼링)
     if (b !== r.b) { r.b = b; r.ball.visible = b > 0; r.ball2.visible = b === 2; }
+    return fell ? r.root.position : null;
   }
 
   thrown(id) {
