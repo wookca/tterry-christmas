@@ -21,6 +21,7 @@ function unlock() {
   const c = ensure();
   if (c && c.state === 'suspended') c.resume();
   loadSteps();
+  loadVoice();
 }
 window.addEventListener('pointerdown', unlock, { passive: true });
 window.addEventListener('keydown', unlock);
@@ -185,7 +186,7 @@ let lastTte = -1;
 let remoteTte = 0;
 // long: 길게 눌렀다 뗀 "떼~", volume: 0~1 (다른 떼리앙은 거리만큼 줄임), combo: 연달아 누른 횟수 (살짝 높아짐)
 export function playTte({ long = false, volume = 1, combo = 0, who = 'me' } = {}) {
-  if (!on || !ctx || ctx.state !== 'running' || volume <= 0.02) return;
+  if (!on || !ctx || ctx.state === 'closed' || volume <= 0.02) return; // 막 켜는 중(suspended)이어도 예약해 두면 켜지자마자 남
   loadVoice();
   let buf;
   if (long) buf = tteLong;

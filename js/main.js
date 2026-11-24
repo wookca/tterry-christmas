@@ -617,6 +617,7 @@ function buildCards() {
         const i = ch.variants.findIndex((v) => v.id === state.variant);
         pickVariant(ch, ch.variants[(i + 1) % ch.variants.length].id);
       } else selectCard(ch.id);
+      selectTte();
     });
     wrap.appendChild(b);
   }
@@ -663,6 +664,15 @@ function selectCard(id) {
   const name = charName(ch, state.variant);
   if (auto && auto.name !== name) input.value = `${auto.word} ${name}`;
   showPreview();
+}
+
+// 선택 화면에서 떼리앙을 바꿀 때마다 "떼" (빠르게 넘기면 "떼떼떼")
+let selTteAt = 0, selCombo = 0;
+function selectTte() {
+  const now = performance.now();
+  selCombo = now - selTteAt < 400 ? selCombo + 1 : 0;
+  selTteAt = now;
+  playTte({ combo: selCombo });
 }
 
 // 선택 화면 미리보기: 고른 떼리앙을 스폰 지점에 세워서 보여줌 (카드를 누를 때마다 바로 바뀜)
@@ -1882,6 +1892,7 @@ function moveCardSelection(dir, e) {
   }
   if (!best) return true; // 끝이면 그대로
   selectCard(best.dataset.id);
+  selectTte();
   best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); // 숨은 칸이면 옆으로 넘어가며 보임
   return true;
 }
