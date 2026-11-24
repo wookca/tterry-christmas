@@ -15,7 +15,7 @@ import { Campfire, FIRE_BLOCK_R } from './campfire.js';
 import { Snowman, SNOWMAN_BLOCK_R, SNOWMAN_CHANNELS } from './snowman.js';
 import { addStat, setUnlockHandler, isLockedChar, pendingReveals, markRevealed, isNewChar, markSeen } from './eggs.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
-import { playStep, playPack, playPackDone, playShatter, playTte, isSoundOn, setSoundOn } from './sound.js';
+import { playStep, playPack, playPackDone, playShatter, playTte, isSoundOn, setSoundOn, isBgmOn, setBgmOn } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
 import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
 import { JoinLog } from './joinlog.js';
@@ -814,11 +814,20 @@ $('guideBtn').addEventListener('click', () => { setGuide(!guideOn); track('guide
 function applySoundBtn() {
   const on = isSoundOn();
   $('soundBtn').classList.toggle('muted', !on); // 꺼져 있으면 스피커에 빨간 ×
-  $('soundBtn').title = on ? '소리 끄기' : '소리 켜기';
+  $('soundBtn').title = on ? '효과음 끄기' : '효과음 켜기';
   $('soundBtn').setAttribute('aria-label', $('soundBtn').title);
 }
 $('soundBtn').addEventListener('click', () => { setSoundOn(!isSoundOn()); applySoundBtn(); track('sound_toggle', { on: isSoundOn() ? 'on' : 'off' }); });
 applySoundBtn();
+// 배경음악 켜기/끄기 (효과음과 따로, 다음에 와도 기억)
+function applyBgmBtn() {
+  const on = isBgmOn();
+  $('bgmBtn').classList.toggle('muted', !on);
+  $('bgmBtn').title = on ? '배경음악 끄기' : '배경음악 켜기';
+  $('bgmBtn').setAttribute('aria-label', $('bgmBtn').title);
+}
+$('bgmBtn').addEventListener('click', () => { setBgmOn(!isBgmOn()); applyBgmBtn(); track('bgm_toggle', { on: isBgmOn() ? 'on' : 'off' }); });
+applyBgmBtn();
 $('guideClose').addEventListener('click', () => setGuide(false));
 $('changeBtn').addEventListener('click', openSelect);
 $('liteBtn').addEventListener('click', () => {

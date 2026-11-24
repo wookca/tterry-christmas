@@ -22,6 +22,7 @@ function unlock() {
   if (c && c.state === 'suspended') c.resume();
   loadSteps();
   loadVoice();
+  startBgm();
 }
 window.addEventListener('pointerdown', unlock, { passive: true });
 window.addEventListener('keydown', unlock);
@@ -31,6 +32,42 @@ export function setSoundOn(v) {
   on = v;
   try { localStorage.setItem('soundOn', v ? '1' : '0'); } catch {}
   if (master) master.gain.setTargetAtTime(v ? 1 : 0, ctx.currentTime, 0.02);
+}
+
+// ─────────────────────────────────────────────
+// 배경음악(BGM): 효과음과 따로 켜고 끔 (localStorage 'bgmOn')
+// 효과음(발소리, 떼 목소리)이 잘 들리게 작게 깔아 둠
+// ─────────────────────────────────────────────
+const BGM_URL = 'sounds/bgm_jingle_bells.mp3';
+const BGM_VOLUME = 0.35;
+let bgmOn = true;
+try { bgmOn = localStorage.getItem('bgmOn') !== '0'; } catch {}
+let bgmEl = null, bgmGain = null;
+function startBgm() {
+  if (!ctx) return;
+  if (!bgmEl) {
+    bgmEl = new Audio(BGM_URL);
+    bgmEl.loop = true;
+    bgmEl.preload = 'auto';
+    try {
+      bgmGain = ctx.createGain();
+      bgmGain.gain.value = BGM_VOLUME;
+      ctx.createMediaElementSource(bgmEl).connect(bgmGain).connect(ctx.destination);
+    } catch { bgmGain = null; bgmEl.volume = BGM_VOLUME; }
+  }
+  if (bgmOn && !document.hidden && bgmEl.paused) bgmEl.play().catch(() => {});
+}
+document.addEventListener('visibilitychange', () => {
+  if (!bgmEl) return;
+  if (document.hidden) bgmEl.pause();
+  else if (bgmOn) bgmEl.play().catch(() => {});
+});
+export function isBgmOn() { return bgmOn; }
+export function setBgmOn(v) {
+  bgmOn = v;
+  try { localStorage.setItem('bgmOn', v ? '1' : '0'); } catch {}
+  if (!bgmEl) return;
+  if (v) bgmEl.play().catch(() => {}); else bgmEl.pause();
 }
 
 // 발소리 파일들: 처음 소리를 켤 때 한 번 불러둠

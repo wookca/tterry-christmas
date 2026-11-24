@@ -12,7 +12,7 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Tterry Christmas</title>
-<link rel="stylesheet" href="css/style.css?v=20261124064444">
+<link rel="stylesheet" href="css/style.css?v=20261124071059">
 </head>
 <body>
   <div id="app"></div>
@@ -51,7 +51,12 @@
       </button>
       <div class="hud-name" id="hudName"></div><button class="hud-online hidden" id="online" title="채널 바꾸기"></button></div>
     <div class="hud-right">
-      <!-- 소리: 아이콘 하나. 나중에 배경음악이 생기면 누를 때 BGM/효과음 두 줄짜리 작은 창이 열리게 바꿀 자리 -->
+      <!-- 배경음악(BGM) 켜기/끄기: 음표. 꺼지면 빨간 사선 -->
+      <button id="bgmBtn" class="hud-btn hud-icon" type="button" aria-label="배경음악 끄기" title="배경음악 끄기">
+        <svg viewBox="0 0 24 24" class="hud-svg"><path d="M9.5 17 V6 L18 4 V15"/><ellipse class="dot" cx="7.4" cy="17.2" rx="2.4" ry="1.9"/><ellipse class="dot" cx="15.9" cy="15.2" rx="2.4" ry="1.9"/>
+          <g class="snd-off"><path d="M4.5 4.5 L19.5 19.5"/></g></svg>
+      </button>
+      <!-- 효과음 켜기/끄기 -->
       <button id="soundBtn" class="hud-btn hud-icon" type="button" aria-label="소리 끄기" title="소리 끄기">
         <svg viewBox="0 0 24 24" class="hud-svg"><path class="spk" d="M4 9.5 H7.5 L12 5.5 V18.5 L7.5 14.5 H4 Z"/>
           <g class="snd-on"><path d="M15 9 Q17 12 15 15"/><path d="M17.6 6.6 Q21.4 12 17.6 17.4"/></g>
@@ -92,29 +97,29 @@
   "imports": {
     "three": "./lib/three.module.min.js",
     "three/addons/": "./lib/addons/",
-    "./js/abilities.js": "./js/abilities.js?v=20261124064444",
-    "./js/analytics.js": "./js/analytics.js?v=20261124064444",
-    "./js/anim.js": "./js/anim.js?v=20261124064444",
-    "./js/campfire.js": "./js/campfire.js?v=20261124064444",
-    "./js/config.js": "./js/config.js?v=20261124064444",
-    "./js/eggs.js": "./js/eggs.js?v=20261124064444",
-    "./js/footprints.js": "./js/footprints.js?v=20261124064444",
-    "./js/imprints.js": "./js/imprints.js?v=20261124064444",
-    "./js/joinlog.js": "./js/joinlog.js?v=20261124064444",
-    "./js/main.js": "./js/main.js?v=20261124064444",
-    "./js/net.js": "./js/net.js?v=20261124064444",
-    "./js/outline.js": "./js/outline.js?v=20261124064444",
-    "./js/paint.js": "./js/paint.js?v=20261124064444",
-    "./js/pilelogic.js": "./js/pilelogic.js?v=20261124064444",
-    "./js/remote.js": "./js/remote.js?v=20261124064444",
-    "./js/snowball.js": "./js/snowball.js?v=20261124064444",
-    "./js/snowman.js": "./js/snowman.js?v=20261124064444",
-    "./js/snowpiles.js": "./js/snowpiles.js?v=20261124064444",
-    "./js/sound.js": "./js/sound.js?v=20261124064444",
-    "./js/trees.js": "./js/trees.js?v=20261124064444"
+    "./js/abilities.js": "./js/abilities.js?v=20261124071059",
+    "./js/analytics.js": "./js/analytics.js?v=20261124071059",
+    "./js/anim.js": "./js/anim.js?v=20261124071059",
+    "./js/campfire.js": "./js/campfire.js?v=20261124071059",
+    "./js/config.js": "./js/config.js?v=20261124071059",
+    "./js/eggs.js": "./js/eggs.js?v=20261124071059",
+    "./js/footprints.js": "./js/footprints.js?v=20261124071059",
+    "./js/imprints.js": "./js/imprints.js?v=20261124071059",
+    "./js/joinlog.js": "./js/joinlog.js?v=20261124071059",
+    "./js/main.js": "./js/main.js?v=20261124071059",
+    "./js/net.js": "./js/net.js?v=20261124071059",
+    "./js/outline.js": "./js/outline.js?v=20261124071059",
+    "./js/paint.js": "./js/paint.js?v=20261124071059",
+    "./js/pilelogic.js": "./js/pilelogic.js?v=20261124071059",
+    "./js/remote.js": "./js/remote.js?v=20261124071059",
+    "./js/snowball.js": "./js/snowball.js?v=20261124071059",
+    "./js/snowman.js": "./js/snowman.js?v=20261124071059",
+    "./js/snowpiles.js": "./js/snowpiles.js?v=20261124071059",
+    "./js/sound.js": "./js/sound.js?v=20261124071059",
+    "./js/trees.js": "./js/trees.js?v=20261124071059"
   }
 }
   </script>
-  <script type="module" src="js/main.js?v=20261124064444"></script>
+  <script type="module" src="js/main.js?v=20261124071059"></script>
 </body>
 </html>
