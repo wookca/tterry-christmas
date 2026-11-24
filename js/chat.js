@@ -16,8 +16,17 @@ export class Chat {
     this.bubbles = new Map(); // id → { el, timer }
     const { form, input, root } = opts;
     input.maxLength = CHAT_MAX;
+    // 한글 입력: 글자를 조합하는 중에 Enter를 누르면 조합이 끝난 뒤에 보냄 (마지막 글자가 빠지거나 남지 않게)
+    this.composing = false;
+    this.sendAfterCompose = false;
+    input.addEventListener('compositionstart', () => { this.composing = true; });
+    input.addEventListener('compositionend', () => {
+      this.composing = false;
+      if (this.sendAfterCompose) { this.sendAfterCompose = false; setTimeout(() => form.requestSubmit(), 0); }
+    });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
+      if (this.composing) { this.deferSend(); return; }
       const text = cleanChat(input.value);
       if (!text) { if (!this.touch) input.blur(); return; }
       const now = performance.now();
@@ -27,27 +36,51 @@ export class Chat {
       opts.send(text);
       if (!this.touch) input.blur(); // PC: 보내면 다시 방향키로 움직일 수 있게. 폰: 키보드 그대로 (이어서 말하기)
     });
-    input.addEventListener('focus', () => { root.classList.add('open'); this.scrollEnd(); opts.onFocus?.(); });
-    input.addEventListener('blur', () => root.classList.remove('open'));
+    input.addEventListener('focus', () => { root.classList.add('open'); this.scrollEnd(); opts.onFocus?.(); this.followKeyboard(); });
+    input.addEventListener('blur', () => { root.classList.remove('open'); this.sendAfterCompose = false; });
     input.addEventListener('keydown', (e) => {
       e.stopPropagation(); // 글자 치는 동안 WASD·스페이스가 게임 조작으로 가지 않게
       if (e.key === 'Escape') input.blur();
+      if (e.key === 'Enter' && (e.isComposing || this.composing)) { e.preventDefault(); this.deferSend(); }
     });
     input.addEventListener('keyup', (e) => e.stopPropagation());
+    // 보내기 버튼을 눌러도 입력창 초점(폰 키보드)이 그대로 있게
+    form.querySelector('button')?.addEventListener('mousedown', (e) => { if (this.typing) e.preventDefault(); });
     root.addEventListener('pointerdown', () => { this.touch = matchMedia('(pointer: coarse)').matches; });
     // 게임 화면(바닥 등)을 누르면 입력 끝 (폰은 키보드가 내려감)
     document.addEventListener('pointerdown', (e) => { if (this.typing && !root.contains(e.target)) input.blur(); }, true);
-    // 폰 키보드가 올라오면 입력창도 키보드 바로 위로 (화면이 밀리거나 가려지지 않게)
     const vv = window.visualViewport;
-    if (vv) {
-      const fit = () => {
-        const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-        root.style.setProperty('--kb', `${Math.round(kb)}px`);
-        if (window.scrollY) window.scrollTo(0, 0);
-      };
-      vv.addEventListener('resize', fit);
-      vv.addEventListener('scroll', fit);
-    }
+    if (vv) { vv.addEventListener('resize', () => this.fitKeyboard()); vv.addEventListener('scroll', () => this.fitKeyboard()); }
+  }
+
+  // 조합 중이면 조합이 끝날 때 보내고, 이미 끝났으면(순서가 반대인 키보드) 바로 보냄
+  deferSend() {
+    const form = this.o.form;
+    setTimeout(() => {
+      if (this.composing) this.sendAfterCompose = true;
+      else form.requestSubmit();
+    }, 0);
+  }
+
+  // 폰 키보드가 올라오면 입력창을 키보드 바로 위로: 실제로 보이는 화면(visualViewport)의 아래 끝에 맞춤
+  // (키보드가 올라오는 동안·화면이 밀리는 동안 이벤트가 빠지는 폰이 있어서, 입력하는 동안은 매 프레임 맞춤)
+  fitKeyboard() {
+    const vv = window.visualViewport;
+    const root = this.o.root;
+    if (!vv) return;
+    const kb = this.typing ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+    if (kb !== this.kb) { this.kb = kb; root.style.setProperty('--kb', `${kb}px`); }
+  }
+
+  followKeyboard() {
+    if (this.following) return;
+    this.following = true;
+    const tick = () => {
+      this.fitKeyboard();
+      if (this.typing) requestAnimationFrame(tick);
+      else { this.following = false; this.fitKeyboard(); setTimeout(() => this.fitKeyboard(), 300); }
+    };
+    requestAnimationFrame(tick);
   }
 
   get typing() { return document.activeElement === this.o.input; }
