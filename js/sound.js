@@ -170,8 +170,8 @@ export function playShatter(volume = 1) {
 const TTE_FILES = Array.from({ length: 5 }, (_, i) => `sounds/tte_0${i + 1}.mp3`);
 const TTE_LONG_FILE = 'sounds/tte_long.mp3';
 let ttes = null, tteLong = null, ouches = null;
-// 눈에 맞아 쓰러질 때 "떼엥" (가이드 음원의 떼를 높게 시작해 처지게 속도만 바꾼 것, 3개 중 랜덤)
-const OUCH_FILES = Array.from({ length: 3 }, (_, i) => `sounds/ouch_0${i + 1}.mp3`);
+// 눈에 맞아 쓰러질 때 "떼엥" (가이드 음원의 떼를 높게 시작해 처지게 속도만 바꾼 것, 2개 중 랜덤)
+const OUCH_FILES = ['sounds/ouch_01.mp3', 'sounds/ouch_03.mp3']; // ouch_02는 이상하다고 해서 뺌 (2026-11-24)
 function loadVoice() {
   if (ttes || !ctx) return;
   ttes = [];
