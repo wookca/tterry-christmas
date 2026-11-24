@@ -612,7 +612,8 @@ function buildCards() {
     const locked = isLockedChar(ch.id) || pendingReveals().includes(ch.id);
     if (locked) b.classList.add('locked');
     if (isNewChar(ch.id)) b.classList.add('new'); // 새로 열린 떼리앙: 오른쪽 위 빨간 점 (한 번 누르면 사라짐)
-    b.innerHTML = `
+    if (ch.variants && ch.variants.length > 1) b.classList.add('multi'); // 여러 타입: 오른쪽 위 회전 아이콘
+    b.innerHTML = `${ch.variants && ch.variants.length > 1 ? MULTI_SVG : ''}
       <div class="thumb">${ch.thumb ? `<div class="art" style="background-image:url(${ch.thumb})"></div>` : '?'}${locked ? LOCK_SVG : ''}</div>
       <div class="name">${locked ? '???' : charName(ch, defaultVariant(ch))}</div>`;
     // 버전이 있는 떼리앙(양념포떼링)은 이미 고른 상태에서 다시 누를 때마다 다음 색으로
@@ -631,6 +632,14 @@ function buildCards() {
     wrap.appendChild(b);
   }
 }
+
+// 여러 타입 떼리앙 카드: 흰 동그라미 위 화살표 두 개 회전 아이콘
+const MULTI_SVG = `<svg class="multi-icon" viewBox="0 0 24 24" aria-hidden="true">
+  <circle class="bg" cx="12" cy="12" r="11.5"/>
+  <path class="arr" d="M6.6 10.2 A5.6 5.6 0 0 1 16.4 8.1"/>
+  <path class="head" d="M17.9 5.3 L17.6 10 L13.2 8.6 Z"/>
+  <path class="arr" d="M17.4 13.8 A5.6 5.6 0 0 1 7.6 15.9"/>
+  <path class="head" d="M6.1 18.7 L6.4 14 L10.8 15.4 Z"/></svg>`;
 
 // 자물쇠 그림 (고리 shackle 는 열릴 때 위로 올라가며 돌아감)
 const LOCK_SVG = `<svg class="lock" viewBox="0 0 24 24" aria-hidden="true">

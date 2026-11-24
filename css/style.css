@@ -89,6 +89,14 @@ html, body {
 .card { position: relative; }
 .card.new::after { content: ''; position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; background: #d6343a; box-shadow: 0 0 0 2px #fff; }
 .card.locked.new::after { display: none; }
+/* 여러 타입 떼리앙 카드: 오른쪽 위 회전 아이콘 (빨간 점이 같이 있으면 점은 아이콘 왼쪽으로) */
+.card .multi-icon { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; z-index: 1; pointer-events: none;
+  filter: drop-shadow(0 1px 1.5px rgba(40,60,80,0.28)); }
+.card .multi-icon .bg { fill: #fff; }
+.card .multi-icon .arr { fill: none; stroke: #5f6f80; stroke-width: 2.2; stroke-linecap: round; }
+.card .multi-icon .head { fill: #5f6f80; }
+.card.locked .multi-icon { display: none; }
+.card.multi.new::after { top: 9px; right: 28px; }
 .card.shake .thumb, .card.shake .name { animation: card-shake 0.35s; }
 @keyframes card-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
 .card .tag { font-size: 11px; color: #8796a5; margin-top: 2px; }
