@@ -15,7 +15,7 @@ import { Campfire, FIRE_BLOCK_R } from './campfire.js';
 import { Snowman, SNOWMAN_BLOCK_R, SNOWMAN_CHANNELS } from './snowman.js';
 import { addStat, setUnlockHandler, isLockedChar, pendingReveals, markRevealed, isNewChar, markSeen } from './eggs.js';
 import { PILE_MAX_SMALL, PILE_MAX_BIG } from './pilelogic.js';
-import { playStep, playPack, playPackDone, playShatter, playTte, isSoundOn, setSoundOn, isBgmOn, setBgmOn } from './sound.js';
+import { playStep, playPack, playPackDone, playShatter, playTte, isSoundOn, setSoundOn, isBgmOn, setBgmOn, getSfxVol, setSfxVol, getBgmVol, setBgmVol, VOL_DEFAULT } from './sound.js';
 import { track, count, setContext, setPlaying } from './analytics.js';
 import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
 import { JoinLog } from './joinlog.js';
@@ -810,24 +810,80 @@ function setGuide(on) {
   applyGuide();
 }
 $('guideBtn').addEventListener('click', () => { setGuide(!guideOn); track('guide_toggle', { on: guideOn ? 'on' : 'off' }); });
-// 소리 켜기/끄기 (다음에 와도 기억)
-function applySoundBtn() {
-  const on = isSoundOn();
-  $('soundBtn').classList.toggle('muted', !on); // 꺼져 있으면 스피커에 빨간 ×
-  $('soundBtn').title = on ? '효과음 끄기' : '효과음 켜기';
-  $('soundBtn').setAttribute('aria-label', $('soundBtn').title);
+// 소리: 배경음악(음표), 효과음(스피커) 버튼 따로. 짧게 누르면 켜기/끄기,
+// PC는 마우스를 올리면, 폰은 길게 누르면 버튼 아래로 세로 볼륨 바가 나옴. 바를 0까지 내리면 꺼짐 (다음에 와도 기억)
+function volumeControl(btn, { name, label, isOn, setOn, getVol, setVol }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'vol-wrap';
+  btn.replaceWith(wrap);
+  wrap.appendChild(btn);
+  const pop = document.createElement('div');
+  pop.className = 'vol-pop';
+  pop.innerHTML = '<div class="vol-box"><div class="vol-track"><div class="vol-fill"></div><div class="vol-knob"></div></div></div>';
+  wrap.appendChild(pop);
+  const bar = pop.querySelector('.vol-track');
+  const fill = pop.querySelector('.vol-fill');
+  const knob = pop.querySelector('.vol-knob');
+  const apply = () => {
+    const on = isOn() && getVol() > 0;
+    const v = on ? getVol() : 0;
+    btn.classList.toggle('muted', !on);
+    btn.title = on ? `${label} 끄기` : `${label} 켜기`;
+    btn.setAttribute('aria-label', btn.title);
+    fill.style.height = `${v * 100}%`;
+    knob.style.bottom = `${v * 100}%`;
+  };
+  let suppressClick = false, pressTimer = 0;
+  btn.addEventListener('click', (e) => {
+    if (suppressClick) { suppressClick = false; e.preventDefault(); return; }
+    const on = isOn() && getVol() > 0;
+    if (!on && getVol() <= 0) setVol(VOL_DEFAULT);
+    setOn(!on); apply();
+    track(`${name}_toggle`, { on: on ? 'off' : 'on' });
+  });
+  // 폰: 길게 누르면 볼륨 바 열기
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => { suppressClick = true; wrap.classList.add('open'); }, 450);
+  });
+  const cancelPress = () => clearTimeout(pressTimer);
+  btn.addEventListener('pointerup', cancelPress);
+  btn.addEventListener('pointercancel', cancelPress);
+  btn.addEventListener('pointerleave', cancelPress);
+  btn.addEventListener('contextmenu', (e) => e.preventDefault()); // 길게 누를 때 메뉴 안 뜨게
+  document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target)) wrap.classList.remove('open'); });
+  // 바 끌기
+  let dragging = false;
+  const setFromY = (y) => {
+    const r = bar.getBoundingClientRect();
+    let v = 1 - (y - r.top) / r.height;
+    v = Math.max(0, Math.min(1, v));
+    if (v < 0.03) v = 0;
+    setVol(v);
+    if (v > 0 && !isOn()) setOn(true);
+    if (v === 0 && isOn()) setOn(false);
+    apply();
+  };
+  pop.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    wrap.classList.add('dragging');
+    pop.setPointerCapture(e.pointerId);
+    setFromY(e.clientY);
+  });
+  pop.addEventListener('pointermove', (e) => { if (dragging) setFromY(e.clientY); });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove('dragging');
+    track(`${name}_volume`, { volume: Math.round(getVol() * 100) });
+  };
+  pop.addEventListener('pointerup', end);
+  pop.addEventListener('pointercancel', end);
+  apply();
 }
-$('soundBtn').addEventListener('click', () => { setSoundOn(!isSoundOn()); applySoundBtn(); track('sound_toggle', { on: isSoundOn() ? 'on' : 'off' }); });
-applySoundBtn();
-// 배경음악 켜기/끄기 (효과음과 따로, 다음에 와도 기억)
-function applyBgmBtn() {
-  const on = isBgmOn();
-  $('bgmBtn').classList.toggle('muted', !on);
-  $('bgmBtn').title = on ? '배경음악 끄기' : '배경음악 켜기';
-  $('bgmBtn').setAttribute('aria-label', $('bgmBtn').title);
-}
-$('bgmBtn').addEventListener('click', () => { setBgmOn(!isBgmOn()); applyBgmBtn(); track('bgm_toggle', { on: isBgmOn() ? 'on' : 'off' }); });
-applyBgmBtn();
+volumeControl($('soundBtn'), { name: 'sound', label: '효과음', isOn: isSoundOn, setOn: setSoundOn, getVol: getSfxVol, setVol: setSfxVol });
+volumeControl($('bgmBtn'), { name: 'bgm', label: '배경음악', isOn: isBgmOn, setOn: setBgmOn, getVol: getBgmVol, setVol: setBgmVol });
 $('guideClose').addEventListener('click', () => setGuide(false));
 $('changeBtn').addEventListener('click', openSelect);
 $('liteBtn').addEventListener('click', () => {

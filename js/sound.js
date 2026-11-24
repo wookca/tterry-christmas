@@ -6,6 +6,15 @@ let ctx = null;
 let master = null;
 let on = true;
 try { on = localStorage.getItem('soundOn') !== '0'; } catch {}
+// 볼륨 (슬라이더 0~1). 기본 0.6 = 원래 크기, 끝까지 올리면 원래보다 조금 더 크게
+export const VOL_DEFAULT = 0.6;
+function loadVol(key) {
+  try { const v = parseFloat(localStorage.getItem(key)); if (v >= 0 && v <= 1) return v; } catch {}
+  return VOL_DEFAULT;
+}
+let sfxVol = loadVol('sfxVol');
+let bgmVol = loadVol('bgmVol');
+const sfxGain = () => (on ? sfxVol / VOL_DEFAULT : 0);
 
 function ensure() {
   if (ctx) return ctx;
@@ -13,7 +22,7 @@ function ensure() {
   if (!AC) return null;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = on ? 1 : 0;
+  master.gain.value = sfxGain();
   master.connect(ctx.destination);
   return ctx;
 }
@@ -31,7 +40,13 @@ export function isSoundOn() { return on; }
 export function setSoundOn(v) {
   on = v;
   try { localStorage.setItem('soundOn', v ? '1' : '0'); } catch {}
-  if (master) master.gain.setTargetAtTime(v ? 1 : 0, ctx.currentTime, 0.02);
+  if (master) master.gain.setTargetAtTime(sfxGain(), ctx.currentTime, 0.02);
+}
+export function getSfxVol() { return sfxVol; }
+export function setSfxVol(v) {
+  sfxVol = v;
+  try { localStorage.setItem('sfxVol', String(v)); } catch {}
+  if (master) master.gain.setTargetAtTime(sfxGain(), ctx.currentTime, 0.02);
 }
 
 // ─────────────────────────────────────────────
@@ -51,9 +66,9 @@ function startBgm() {
     bgmEl.preload = 'auto';
     try {
       bgmGain = ctx.createGain();
-      bgmGain.gain.value = BGM_VOLUME;
+      bgmGain.gain.value = bgmLevel();
       ctx.createMediaElementSource(bgmEl).connect(bgmGain).connect(ctx.destination);
-    } catch { bgmGain = null; bgmEl.volume = BGM_VOLUME; }
+    } catch { bgmGain = null; bgmEl.volume = Math.min(1, bgmLevel()); }
   }
   if (bgmOn && bgmEl.paused) bgmEl.play().catch(() => {});
 }
@@ -63,6 +78,14 @@ document.addEventListener('visibilitychange', () => {
   if (ctx && ctx.state === 'suspended') ctx.resume();
   if (bgmOn && bgmEl.paused) bgmEl.play().catch(() => {});
 });
+function bgmLevel() { return BGM_VOLUME * bgmVol / VOL_DEFAULT; }
+export function getBgmVol() { return bgmVol; }
+export function setBgmVol(v) {
+  bgmVol = v;
+  try { localStorage.setItem('bgmVol', String(v)); } catch {}
+  if (bgmGain) bgmGain.gain.setTargetAtTime(bgmLevel(), ctx.currentTime, 0.02);
+  else if (bgmEl) bgmEl.volume = Math.min(1, bgmLevel());
+}
 export function isBgmOn() { return bgmOn; }
 export function setBgmOn(v) {
   bgmOn = v;
