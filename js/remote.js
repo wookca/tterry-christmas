@@ -84,6 +84,8 @@ export class RemotePlayers {
     }).catch((err) => console.error('다른 플레이어 떼리앙 표시 실패', p.char, err));
   }
 
+  labelOf(id) { return this.map.get(id)?.label || null; }
+
   update(m) {
     const r = this.map.get(m.id);
     if (!r) return;

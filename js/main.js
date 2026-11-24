@@ -19,6 +19,8 @@ import { playStep, playPack, playPackDone, playShatter, playTte, isSoundOn, setS
 import { track, count, setContext, setPlaying } from './analytics.js';
 import { abilityOf, ballSizeOf, hitExtraOf, hitShape } from './abilities.js';
 import { JoinLog } from './joinlog.js';
+import { Chat } from './chat.js';
+import { tteify } from './ttespeak.js';
 
 // ─────────────────────────────────────────────
 // 설정
@@ -745,6 +747,8 @@ function openSelect() {
   showPreview();
   $('select').classList.remove('hidden');
   $('hud').classList.add('hidden');
+  $('chat').classList.add('hidden');
+  chat.blur();
   $('guide').classList.add('hidden');
   revealCards();
 }
@@ -789,6 +793,7 @@ async function startGame() {
   $('liteBtn').textContent = USE_LITE ? '원본 모델로 보기' : '경량 모델로 보기';
   $('select').classList.add('hidden');
   $('hud').classList.remove('hidden');
+  $('chat').classList.remove('hidden');
   state.playing = true;
   setPlaying(true);
   applyGuide();
@@ -1237,6 +1242,12 @@ const KEYMAP = {
 };
 let spaceDown = false;
 window.addEventListener('keydown', (e) => {
+  if (e.target?.closest?.('input, textarea')) return; // 닉네임·채팅 입력 중
+  if ((e.key === 'Enter' || e.code === 'NumpadEnter') && state.playing && !e.isComposing) {
+    e.preventDefault();
+    chat.focus(); // Enter = 채팅 입력
+    return;
+  }
   if (e.code === 'Space' && state.playing) {
     e.preventDefault();
     if (e.repeat || spaceDown) return;
@@ -1672,6 +1683,18 @@ const myLabel = document.createElement('div');
 myLabel.className = 'name-tag me';
 myLabel.style.display = 'none';
 $('labels').appendChild(myLabel);
+// 채팅: 서버(버전 13부터)가 떼리앙 말투로 바꿔서 모두에게 보냄. 혼자 하기·옛 서버는 내 화면에서만 바꿔서 보여줌
+let chatOnServer = false;
+const chat = new Chat({
+  root: $('chat'), log: $('chatLog'), form: $('chatForm'), input: $('chatInput'),
+  labelOf: (id) => (id === 'me' || (net && id === net.id) ? myLabel : remotes.labelOf(id)),
+  send: (text) => {
+    count('chats');
+    if (net && net.connected && chatOnServer) net.send({ t: 'chat', text });
+    else chat.add({ id: 'me', name: myLabel.textContent, text: tteify(text), mine: true });
+  },
+  onFocus: () => { state.keys.clear(); },
+});
 const labelPos = new THREE.Vector3();
 function updateMyLabel() {
   if (!state.playing || !player.visible || !myLabel.textContent) { myLabel.style.display = 'none'; return; }
@@ -1824,6 +1847,7 @@ function makeNet() {
     },
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onPile: (m) => snowPiles.apply(m),
+    onChat: (m) => chat.add({ id: m.id, name: m.name, text: m.text, mine: m.id === net.id }),
     onPoke: (m) => {
       const at = remotes.poke(m);
       if (!at || m.p || m.s) return;
@@ -1833,7 +1857,7 @@ function makeNet() {
       remotes.thrown(m.id);
       snowballs.throwBall({ owner: String(m.id), from: new THREE.Vector3(m.fx, m.fy, m.fz), velocity: new THREE.Vector3(m.vx, m.vy, m.vz), size: ballSizeOf(remotes.charOf(m.id)) });
     },
-    onDisconnect: () => { remotes.clear(); updateOnlineHud(); },
+    onDisconnect: () => { remotes.clear(); chat.clearBubbles(); updateOnlineHud(); },
     onStatus: setNetStatus,
     onOld: onOldClient,
   });
@@ -1900,6 +1924,7 @@ async function init() {
   // 서버(Cloudflare)에서 열었으면 온라인 모드
   const server = await detectServer();
   if (server && (server.version || 1) < 12) sendEvery = 100;
+  chatOnServer = !!server && (server.version || 1) >= 13;
   if (server && (server.version || 1) < 2) console.warn('[Tterry] 서버가 옛날 버전이에요. deploy.bat을 다시 실행하면 쓰러지기가 다른 사람에게도 보여요.');
   state.online = !!server;
   $('nameRow').classList.remove('hidden');

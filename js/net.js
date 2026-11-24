@@ -125,6 +125,7 @@ export class Net {
         case 'hit': this.h.onHit?.(m); break;
         case 'pile': this.h.onPile?.(m); break;
         case 'poke': this.h.onPoke?.(m); break;
+        case 'chat': this.h.onChat?.(m); break;
       }
     };
     ws.onclose = () => {

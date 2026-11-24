@@ -11,6 +11,7 @@
 // 채널 하나 = Durable Object 하나. 같은 채널 사람들끼리만 서로 보임.
 // ─────────────────────────────────────────────
 import { DurableObject } from 'cloudflare:workers';
+import { tteify, cleanChat } from '../js/ttespeak.js';
 import { maxPilesForChannel, rng, makePiles, regrowDue, regrowDelay, publicPile, PILE_TAKE_RANGE } from '../js/pilelogic.js';
 
 const MAX_PLAYERS = 50;   // 홀수 채널(숲) 최대 인원
@@ -59,7 +60,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 12, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 13, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -390,6 +391,22 @@ export class Channel extends DurableObject {
         if (p.pokeN > 30) return;
         this.flush();
         this.broadcast({ t: 'poke', id: p.id, p: msg.p ? 1 : 0, l: msg.l ? 1 : 0, s: msg.s ? 1 : 0, c: Math.max(0, Math.min(4, Number(msg.c) || 0)) }, p.id);
+        return;
+      }
+      case 'chat': {
+        // 채팅: 서버가 떼리앙 말투(80% 정도 "떼")로 바꿔서 보낸 사람 포함 모두에게 같은 글을 보냄
+        if (!p.joined) return;
+        const text = cleanChat(msg.text);
+        if (!text) return;
+        const now = Date.now();
+        if (now - (p.chatAt || 0) < 700) return; // 너무 빠른 연속 채팅 무시
+        p.chatN = now - (p.chatWin || 0) > 10000 ? 1 : (p.chatN || 0) + 1; // 10초에 6번까지 (도배 방지)
+        if (p.chatN === 1) p.chatWin = now;
+        p.chatAt = now;
+        try { ws.serializeAttachment(p); } catch { /* 닫힌 소켓 */ }
+        if (p.chatN > 6) return;
+        this.flush();
+        this.broadcast({ t: 'chat', id: p.id, name: p.name, text: tteify(text) });
         return;
       }
       case 'ping':

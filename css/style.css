@@ -324,3 +324,63 @@ html, body {
 }
 /* 롱치떼링은 키가 커서 그림을 회색 네모면 밖(위·아래)으로 조금 넘치게 크게 (카드 테두리선은 안 넘게, 2026-11-23) */
 .card[data-id="longchi"] .art { inset: -5px -4px -3px; background-size: auto 100%; }
+
+/* 채팅 (왼쪽 아래): 대화 기록 + 입력창. --kb = 폰 키보드 높이 (키보드 바로 위로 올라감) */
+.chat {
+  --kb: 0px;
+  position: fixed; left: 12px; bottom: calc(12px + var(--kb) + env(safe-area-inset-bottom, 0px)); z-index: 11;
+  width: 340px; max-width: calc(100% - 24px); display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+}
+.chat-log {
+  max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  scrollbar-width: none; overscroll-behavior: contain;
+}
+.chat-log::-webkit-scrollbar { display: none; }
+.chat-row {
+  max-width: 100%; background: rgba(14, 20, 30, 0.55); color: #fff; border-radius: 9px; padding: 3px 9px;
+  font-size: 13px; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; transition: opacity 0.8s;
+}
+.chat-row b { font-weight: 800; color: #cfe0f1; margin-right: 6px; }
+.chat-row.mine b { color: #ff8a8a; }
+.chat-row.old { opacity: 0; }
+/* 입력창을 누르면: 지난 기록도 다시 보이고, 위아래로 넘겨 볼 수 있음 */
+.chat.open .chat-log { max-height: min(240px, 34vh); pointer-events: auto; -webkit-user-select: text; user-select: text; }
+.chat.open .chat-row.old { opacity: 1; }
+.chat-form { display: flex; gap: 6px; pointer-events: auto; }
+.chat-input {
+  flex: 1; min-width: 0; height: 38px; box-sizing: border-box; padding: 0 14px; border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85); color: #23303d; font: inherit; font-size: 16px; /* 16px: 아이폰이 화면을 확대하지 않게 */
+  -webkit-user-select: text; user-select: text; box-shadow: 0 1px 4px rgba(20, 35, 55, 0.15);
+}
+.chat-input::placeholder { color: #8796a5; }
+.chat-input:focus { outline: none; background: #fff; box-shadow: 0 0 0 2px #d6343a; }
+.chat-send {
+  flex: 0 0 38px; width: 38px; height: 38px; border: 0; border-radius: 50%; padding: 0; cursor: pointer;
+  background: rgba(255, 255, 255, 0.85); display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(20, 35, 55, 0.15);
+}
+.chat.open .chat-send { background: #d6343a; }
+.chat.open .chat-send .hud-svg { stroke: #fff; }
+.chat-send:active { transform: scale(0.92); }
+@media (max-width: 520px) {
+  .chat { left: 8px; right: 8px; bottom: calc(8px + var(--kb) + env(safe-area-inset-bottom, 0px)); width: auto; max-width: none; }
+  .chat-log { max-height: 116px; max-width: 78%; }
+  .chat.open .chat-log { max-width: 100%; }
+  .chat-row { font-size: 12px; padding: 2px 8px; }
+  .chat-input, .chat-send { height: 34px; }
+  .chat-send { flex-basis: 34px; width: 34px; }
+}
+/* 머리 위 말풍선 (이름표 위에 붙음) */
+.bubble {
+  position: absolute; left: 50%; bottom: calc(100% + 9px); transform: translateX(-50%);
+  width: max-content; max-width: 190px; padding: 6px 11px; border-radius: 14px;
+  background: #fff; color: #23303d; font-size: 15px; font-weight: 700; line-height: 1.35; text-align: center;
+  white-space: normal; word-break: keep-all; overflow-wrap: anywhere; box-shadow: 0 2px 8px rgba(20, 35, 55, 0.22);
+}
+.bubble::after {
+  content: ''; position: absolute; left: 50%; top: 100%; margin-left: -6px;
+  border: 6px solid transparent; border-top-color: #fff; border-bottom: 0;
+}
+.bubble.pop { animation: bubble-pop 0.22s ease-out; }
+@keyframes bubble-pop { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+@media (max-width: 520px) { .bubble { font-size: 13px; max-width: 150px; padding: 5px 9px; } }
