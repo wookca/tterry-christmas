@@ -80,7 +80,12 @@ const CHARACTERS = [
       { id: 'choco', label: '썬초떼링', linear: [0.07619, 0.03689, 0.03689] },
     ] },
   { id: 'ham', name: '햄떼링', ready: false },
-  { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE },
+  // 화떼링 2종 (A: 날개, B: 길쭉한 닭다리): 모델 파일이 서로 달라서 버전마다 file 을 따로 씀. 이름은 둘 다 화떼링
+  { id: 'hwa', name: '화떼링', file: 'models/hwa.glb', ready: true, outline: true, unitScale: GLB_SCALE,
+    variants: [
+      { id: 'a', file: 'models/hwa.glb' },
+      { id: 'b', file: 'models/hwa_b.glb' },
+    ] },
   { id: 'wheel', name: '휠떼링', file: 'models/wheel.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
   // 지떼링: 몸이 커서 눈덩이가 크고 맞히는 범위가 넓음, 대신 느림 (js/abilities.js)
   { id: 'ji', name: '지떼링', file: 'models/ji.glb', ready: true, outline: true, unitScale: GLB_SCALE, autoHand: true },
@@ -426,6 +431,8 @@ function defaultVariant(ch) { return ch.variants ? ch.variants[0].id : null; }
 function loadCharacter(ch, variantId) {
   if (!ch.variants) return loadBaseCharacter(ch);
   const v = ch.variants.find((x) => x.id === variantId) || ch.variants[0];
+  // 모델 파일 자체가 다른 버전(화떼링 A/B): 그 파일을 따로 불러옴
+  if (v.file) return loadBaseCharacter({ ...ch, id: `${ch.id}@${v.id}`, file: v.file });
   const key = `${ch.id}-${v.id}`;
   if (modelCache.has(key)) return modelCache.get(key);
   const p = Promise.all([loadBaseCharacter(ch), v.map ? textureLoader.loadAsync(encodeURI(v.map)) : null]).then(([base, tex]) => {
