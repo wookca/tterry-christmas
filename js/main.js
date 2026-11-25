@@ -1691,13 +1691,15 @@ const chat = new Chat({
   send: (text) => {
     count('chats');
     if (net && net.connected && chatOnServer) net.send({ t: 'chat', text });
-    else chat.add({ id: 'me', name: myLabel.textContent, text: tteify(text), mine: true });
+    else chat.add({ id: 'me', name: myTagName(), text: tteify(text), mine: true });
   },
   onFocus: () => { state.keys.clear(); },
 });
+// 이름표의 닉네임만 (말풍선이 이름표 안에 붙어 있어서 textContent에는 말풍선 글도 섞임)
+function myTagName() { const t = myLabel.firstChild; return t && t.nodeType === 3 ? t.nodeValue : ''; }
 const labelPos = new THREE.Vector3();
 function updateMyLabel() {
-  if (!state.playing || !player.visible || !myLabel.textContent) { myLabel.style.display = 'none'; return; }
+  if (!state.playing || !player.visible || !myTagName()) { myLabel.style.display = 'none'; return; }
   labelPos.copy(player.position).setY(myTop() + 0.15 - (myTop() - 0.55) * (state.fall || 0)).project(camera);
   const visible = labelPos.z < 1 && Math.abs(labelPos.x) < 1.1 && Math.abs(labelPos.y) < 1.1;
   myLabel.style.display = visible ? '' : 'none';
@@ -1775,7 +1777,7 @@ function myCharCode() {
   return charCode(ch, state.variant);
 }
 // 채널 기록 창 (왼쪽 위 버튼)
-const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $('logList'), title: $('logTitle'), close: $('logClose'), myName: () => myLabel.textContent, sid: SESSION_ID });
+const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $('logList'), title: $('logTitle'), close: $('logClose'), myName: () => myTagName(), sid: SESSION_ID });
 let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
