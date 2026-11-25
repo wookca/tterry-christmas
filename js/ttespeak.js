@@ -35,20 +35,32 @@ export function tteify(text, rand = Math.random) {
     else if (p.kind === 'en') { p.n = Math.max(1, Math.min(3, Math.round(p.s.length / 3))); p.keep = 0; words.push(p); }
   }
   const total = words.reduce((a, w) => a + w.n, 0);
-  // 남길 글자 수: 전체의 25~40% (한 글자짜리 말은 그냥 "떼")
-  let budget = total <= 1 ? 0 : Math.max(1, Math.round(total * (0.25 + rand() * 0.15)));
+  // 남길 글자 수: 전체의 28~45% (한 글자짜리 말은 그냥 "떼")
+  let budget = total <= 1 ? 0 : Math.max(1, Math.round(total * (0.28 + rand() * 0.17)));
   // 단어를 섞어서 차례로 앞부분 몇 글자씩 남김 (짧은 단어는 통째로, 긴 단어는 절반까지)
   const order = words.map((w, i) => [rand(), i]).sort((a, b) => a[0] - b[0]).map((x) => words[x[1]]);
   for (const w of order) {
     if (budget <= 0) break;
     if (w.kind === 'en') { if (w.n <= budget) { w.keep = w.n; budget -= w.n; } continue; } // 영어는 통째로 남기거나 통째로 바꿈
     const cap = w.n <= 2 ? w.n : Math.floor(w.n / 2);
-    const take = Math.min(budget, rand() < 0.65 ? cap : 1 + Math.floor(rand() * cap)); // 대개 앞 절반(짧은 단어는 통째로)을 남겨서 알아들을 수 있게
+    const take = Math.min(budget, rand() < 0.5 ? cap : 1 + Math.floor(rand() * cap)); // 반은 앞 절반(짧은 단어는 통째로), 반은 1글자~절반 사이
     w.keep = take; budget -= take;
+    // 20% 정도는 앞글자 대신 아무 자리 글자를 남김 (예: 안녕하세요 → 떼녕떼세떼). 나머지는 앞에서부터
+    if (take < w.n && rand() < 0.2) {
+      const idx = [...Array(w.n).keys()].map((i) => [rand(), i]).sort((a, b) => a[0] - b[0]).slice(0, take).map((x) => x[1]);
+      w.pick = new Set(idx);
+    }
   }
-  return parts.map((p) => {
+  const out = parts.map((p) => {
     if (p.kind === 'keep') return p.s;
     if (p.kind === 'en') return p.keep ? p.s : '떼'.repeat(p.n);
+    if (p.pick) return Array.from(p.s).map((c, i) => (p.pick.has(i) ? c : '떼')).join('');
     return Array.from(p.s).slice(0, p.keep).join('') + '떼'.repeat(p.n - p.keep);
   }).join('');
+  // 자음·모음으로만 말하면(ㅋㅋㅋ, ㅎㅇ) 맨 뒤 자음을 떼로: ㅋㅋㅋ → ㅋㅋ떼
+  if (!words.length) {
+    const chars = Array.from(out);
+    for (let i = chars.length - 1; i >= 0; i--) if (/[ㄱ-ㅎㅏ-ㅣ]/.test(chars[i])) { chars[i] = '떼'; return chars.join(''); }
+  }
+  return out;
 }

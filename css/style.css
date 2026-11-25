@@ -329,23 +329,26 @@ html, body {
 .chat {
   --kb: 0px;
   position: fixed; left: 28px; bottom: calc(44px + var(--kb) + env(safe-area-inset-bottom, 0px)); z-index: 11; /* PC: 화면 모서리에 붙지 않게 살짝 띄움 (2026-11-25) */
-  width: 340px; max-width: calc(100% - 56px); display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  width: 340px; max-width: calc(100% - 56px); display: flex; flex-direction: column; gap: 18px; pointer-events: none; /* 기록과 입력창 사이를 띄움 (2026-11-25) */
 }
 .chat-log {
-  max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  max-height: min(200px, 30vh); overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  margin-left: -28px; padding-left: 28px; /* 왼쪽으로 미끄러지는 줄이 화면 끝까지 보이게 */
   scrollbar-width: none; overscroll-behavior: contain;
 }
 .chat-log::-webkit-scrollbar { display: none; }
 .chat-row {
   max-width: 100%; background: rgba(14, 20, 30, 0.55); color: #fff; border-radius: 9px; padding: 3px 9px;
-  font-size: 13px; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; transition: opacity 0.8s;
+  font-size: 13px; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere;
 }
 .chat-row b { font-weight: 800; color: #cfe0f1; margin-right: 6px; }
 .chat-row.mine b { color: #ff8a8a; }
-.chat-row.old { opacity: 0; }
+.chat-row { transition: transform 0.35s ease, opacity 0.35s ease; }
+/* 지난 줄: 왼쪽으로 미끄러져 사라짐 (입력창을 닫을 때도). 기록 칸 높이는 열고 닫아도 같아서 글씨가 잘리지 않음 */
+.chat-row.old { opacity: 0; transform: translateX(calc(-100% - 40px)); }
 /* 입력창을 누르면: 지난 기록도 다시 보이고, 위아래로 넘겨 볼 수 있음 */
-.chat.open .chat-log { max-height: min(240px, 34vh); pointer-events: auto; -webkit-user-select: text; user-select: text; }
-.chat.open .chat-row.old { opacity: 1; }
+.chat.open .chat-log { pointer-events: auto; -webkit-user-select: text; user-select: text; }
+.chat.open .chat-row.old { opacity: 1; transform: none; }
 .chat-form { display: flex; gap: 6px; pointer-events: auto; }
 .chat-input {
   flex: 1; min-width: 0; height: 38px; box-sizing: border-box; padding: 0 14px; border: 0; border-radius: 999px;
@@ -364,8 +367,8 @@ html, body {
 .chat-send:active { transform: scale(0.92); }
 @media (max-width: 520px) {
   .chat { left: 8px; right: 8px; bottom: calc(8px + var(--kb) + env(safe-area-inset-bottom, 0px)); width: auto; max-width: none; }
-  .chat-log { max-height: 116px; max-width: 78%; }
-  .chat.open .chat-log { max-width: 100%; }
+  .chat { gap: 12px; }
+  .chat-log { max-height: 116px; max-width: 78%; margin-left: -8px; padding-left: 8px; }
   .chat-row { font-size: 12px; padding: 2px 8px; }
   .chat-input, .chat-send { height: 34px; }
   .chat-send { flex-basis: 34px; width: 34px; }
@@ -382,5 +385,6 @@ html, body {
   border: 6px solid transparent; border-top-color: #fff; border-bottom: 0;
 }
 .bubble.pop { animation: bubble-pop 0.22s ease-out; }
+.bubble.out { opacity: 0; transition: opacity 0.3s ease; }
 @keyframes bubble-pop { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 @media (max-width: 520px) { .bubble { font-size: 13px; max-width: 150px; padding: 5px 9px; } }

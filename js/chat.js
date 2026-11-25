@@ -37,7 +37,7 @@ export class Chat {
       if (!this.touch) input.blur(); // PC: 보내면 다시 방향키로 움직일 수 있게. 폰: 키보드 그대로 (이어서 말하기)
     });
     input.addEventListener('focus', () => { root.classList.add('open'); this.scrollEnd(); opts.onFocus?.(); this.followKeyboard(); });
-    input.addEventListener('blur', () => { root.classList.remove('open'); this.sendAfterCompose = false; });
+    input.addEventListener('blur', () => { root.classList.remove('open'); this.scrollEnd(); this.sendAfterCompose = false; });
     input.addEventListener('keydown', (e) => {
       e.stopPropagation(); // 글자 치는 동안 WASD·스페이스가 게임 조작으로 가지 않게
       if (e.key === 'Escape') input.blur();
@@ -116,10 +116,14 @@ export class Chat {
     if (!b || b.label !== label) { b?.el.remove(); b = { el: document.createElement('div'), label }; b.el.className = 'bubble'; this.bubbles.set(id, b); }
     if (b.el.parentNode !== label) label.appendChild(b.el); // 이름표 글자가 바뀌면서 떨어졌으면 다시 붙임
     b.el.textContent = text;
-    b.el.classList.remove('pop'); void b.el.offsetWidth; b.el.classList.add('pop');
+    b.el.classList.remove('pop', 'out'); void b.el.offsetWidth; b.el.classList.add('pop');
     clearTimeout(b.timer);
-    const ms = Math.min(9000, 3500 + Array.from(text).length * 120);
-    b.timer = setTimeout(() => { b.el.remove(); this.bubbles.delete(id); }, ms);
+    // 머리 위에 오래 남김 (2026-11-25 요청): 6초 + 글자당 0.15초, 최대 14초. 사라질 때는 0.3초 페이드아웃
+    const ms = Math.min(14000, 6000 + Array.from(text).length * 150);
+    b.timer = setTimeout(() => {
+      b.el.classList.add('out');
+      b.timer = setTimeout(() => { b.el.remove(); if (this.bubbles.get(id) === b) this.bubbles.delete(id); }, 300);
+    }, ms);
   }
 
   // 채널을 옮기거나 끊기면 말풍선만 지움 (기록은 남겨 둠)
