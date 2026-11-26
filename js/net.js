@@ -118,7 +118,7 @@ export class Net {
           // 새 서버: 0.1초 동안 모인 여러 사람의 움직임이 한 묶음으로 옴 [id, x, z, yaw, 상태 비트, vx, vz]
           for (const r of m.s || []) {
             const f = r[4] | 0;
-            this.h.onState?.({ id: r[0], x: r[1], z: r[2], yaw: r[3], m: f & 1, g: (f >> 1) & 1, b: (f >> 2) & 3, a: (f >> 4) & 1, d: (f >> 5) & 3, vx: r[5] || 0, vz: r[6] || 0 });
+            this.h.onState?.({ id: r[0], x: r[1], z: r[2], yaw: r[3], m: f & 1, g: (f >> 1) & 1, b: (f >> 2) & 3, a: (f >> 4) & 1, d: (f >> 5) & 3, s: (f >> 7) & 1, vx: r[5] || 0, vz: r[6] || 0 });
           }
           break;
         case 'throw': this.h.onThrow?.(m); break;
@@ -126,6 +126,11 @@ export class Net {
         case 'pile': this.h.onPile?.(m); break;
         case 'poke': this.h.onPoke?.(m); break;
         case 'chat': this.h.onChat?.(m); break;
+        case 'prof':
+          // 누군가(나 포함) 다시 접속하지 않고 떼리앙·닉네임을 바꿈
+          if (m.id === this.id && m.name) this.lastName = m.name;
+          this.h.onProfile?.(m);
+          break;
       }
     };
     ws.onclose = () => {

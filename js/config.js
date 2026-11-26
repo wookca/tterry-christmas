@@ -7,7 +7,7 @@
 export const SERVER_URL = 'https://tterry-christmas.aepluginstorage.workers.dev';
 
 // 게임 화면 버전 (서버 server/worker.js MIN_CLIENT 와 맞춤). 서버가 이보다 높은 버전을 요구하면 접속이 거절되고 새로고침 안내가 뜸
-export const CLIENT_VER = 1;
+export const CLIENT_VER = 2;
 
 export function serverUrl() {
   const local = ['localhost', '127.0.0.1'].includes(location.hostname);

@@ -25,12 +25,12 @@ const LOG_MAX = 100;      // 채널 기록(입장·닉네임 변경·퇴장) 최
 const RE_WINDOW = 15000;  // 다시 접속(떼리앙·닉네임 바꾸기, 잠깐 끊김)으로 볼 시간: 나간 뒤 이 안에 돌아오면 퇴장 기록을 지움
 // 게임 화면 버전: 이보다 옛날 화면(또는 버전을 안 보내는 아주 옛 화면)은 접속을 거절 → 브라우저를 오래 켜 둔 옛 화면이 계속 들어오는 것 막기
 // 게임 쪽 js/config.js CLIENT_VER 와 맞춤. 옛 화면을 모두 내보내고 싶을 때 둘 다 1 올리고 배포
-const MIN_CLIENT = 1;
+const MIN_CLIENT = 2;
 // 위치 묶어 보내기: 움직임(state)은 바로 보내지 않고 모아 뒀다가 0.1초마다 한 번에 보냄 → 서버·폰 부담이 크게 줄어듦
 // (던지기·누르기·맞음은 바로 보냄. 그 전에 모아 둔 위치를 먼저 내보내서 순서가 꼬이지 않게)
 const TICK_MS = 100;
 // 묶음 한 줄: [id, x, z, yaw, 상태 비트, vx, vz]  상태 비트 = m | g<<1 | b<<2 (2비트) | a<<4 | d<<5 (2비트)
-const packState = (p) => [p.id, p.x, p.z, p.yaw, (p.m | (p.g << 1) | (p.b << 2) | (p.a << 4) | ((p.d || 0) << 5)), p.vx || 0, p.vz || 0];
+const packState = (p) => [p.id, p.x, p.z, p.yaw, (p.m | (p.g << 1) | (p.b << 2) | (p.a << 4) | ((p.d || 0) << 5) | ((p.s || 0) << 7)), p.vx || 0, p.vz || 0];
 const cleanName = (v) => String(v || '').replace(/[<>&"'`]/g, '').trim().slice(0, 12);
 
 // 접속을 허용할 주소인지 확인 (다른 사이트에서 몰래 붙는 것 방지)
@@ -60,7 +60,7 @@ export default {
 
     if (url.pathname === '/api/info') {
       // version: 서버 코드가 바뀔 때 올림 (게임 화면이 새 서버인지 확인하는 데 씀)
-      return cors(Response.json({ ok: true, version: 13, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
+      return cors(Response.json({ ok: true, version: 14, maxPlayers: MAX_PLAYERS, maxChannels: MAX_CHANNELS }), origin);
     }
 
     if (url.pathname === '/api/channels') {
@@ -195,7 +195,7 @@ export class Channel extends DurableObject {
   }
   // 나감: 같은 닉네임으로 이미 다시 들어와 있으면(끊긴 연결이 늦게 정리된 경우) 기록하지 않음
   logLeave(a) {
-    if (!this.log || !a.name) return;
+    if (!this.log || !a.name || a.logged === false) return; // 처음 들어와 떼리앙을 고르다 나감: 들어온 기록도 없었으니 나감도 안 남김
     for (const ws of this.ctx.getWebSockets()) {
       const o = ws.deserializeAttachment();
       if (o && o.joined && o.id !== a.id && o.name === a.name) return;
@@ -256,7 +256,7 @@ export class Channel extends DurableObject {
     const list = [...this.pending.values()];
     this.pending.clear();
     const rows = list.map(packState);
-    const one = new Map(list.map((p) => [p.id, JSON.stringify({ t: 'state', id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d })]));
+    const one = new Map(list.map((p) => [p.id, JSON.stringify({ t: 'state', id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d, s: p.s || 0 })]));
     for (const { ws, p } of [...this.players(), ...this.watchers()]) {
       try {
         if (p.bv) {
@@ -269,12 +269,12 @@ export class Channel extends DurableObject {
     }
   }
   queueState(p) {
-    this.pending.set(p.id, { id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d, vx: p.vx, vz: p.vz });
+    this.pending.set(p.id, { id: p.id, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d, s: p.s || 0, vx: p.vx, vz: p.vz });
     if (!this.tick) this.tick = setTimeout(() => { this.tick = null; this.flush(); }, TICK_MS);
   }
 
   publicState(p) {
-    return { id: p.id, name: p.name, char: p.char, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d || 0 };
+    return { id: p.id, name: p.name, char: p.char, x: p.x, z: p.z, yaw: p.yaw, m: p.m, g: p.g, b: p.b, a: p.a, d: p.d || 0, s: p.s || 0, ...(p.logged === false ? { nw: 1 } : {}) }; // nw: 처음 들어와 고르는 중 (아직 들어온 기록 없음)
   }
 
   async webSocketMessage(ws, data) {
@@ -319,8 +319,11 @@ export class Channel extends DurableObject {
         p.z = num(msg.z, -R, R);
         p.yaw = num(msg.yaw, -10, 10);
         p.m = 0; p.g = 0; p.b = 0; p.a = 0; p.d = 0;
+        // s: 떼리앙을 고르는 중 (다른 사람 화면에서 하얗게). 처음 들어와 고르는 중이면 [시작]을 누를 때까지 들어온 기록을 미룸
+        p.s = msg.s ? 1 : 0;
+        p.logged = !(p.s && !re);
         ws.serializeAttachment(p);
-        this.logJoin(p, re);
+        if (p.logged) this.logJoin(p, re);
         const others = this.players().filter((o) => o.p.id !== p.id).map((o) => this.publicState(o.p));
         ws.send(JSON.stringify({ t: 'welcome', id: p.id, ch: p.ch, name: p.name, players: others, max: maxFor(p.ch), piles: this.piles.filter((q) => q.up).map(publicPile), log: this.log, now: Date.now() }));
         this.broadcast({ t: 'join', p: this.publicState(p), re: re || undefined }, p.id);
@@ -337,6 +340,8 @@ export class Channel extends DurableObject {
         p.b = msg.b === 2 ? 2 : msg.b ? 1 : 0; // 눈덩이 들고 있음 (2: 양손에 하나씩, 치떼링)
         p.a = msg.a ? 1 : 0; // 조준 중
         p.d = msg.d === 1 || msg.d === 2 ? msg.d : 0; // 눈에 맞아 쓰러짐 (1: 앞으로, 2: 뒤로)
+        p.s = msg.s ? 1 : 0; // 떼리앙 고르는 중
+        if (!p.s && p.logged === false) { p.logged = true; this.logJoin(p); } // 처음 고르기를 마치고 [시작]: 이제 들어온 기록
         p.vx = r2(num(msg.vx, -15, 15)); p.vz = r2(num(msg.vz, -15, 15)); // 걷는 속도 → 받는 쪽이 다음 위치를 미리 그려서 부드럽게
         ws.serializeAttachment(p);
         this.queueState(p);
@@ -407,6 +412,21 @@ export class Channel extends DurableObject {
         if (p.chatN > 6) return;
         this.flush();
         this.broadcast({ t: 'chat', id: p.id, name: p.name, text: tteify(text) });
+        return;
+      }
+      case 'prof': {
+        // 다시 접속하지 않고 떼리앙·닉네임 바꾸기 → 모두(나 포함)에게 알림
+        if (!p.joined) return;
+        const char = String(msg.char || p.char).replace(/[^a-z0-9_-]/gi, '').slice(0, 24) || p.char;
+        const name = cleanName(msg.name) || p.name;
+        const old = p.name;
+        p.char = char; p.name = name;
+        if (msg.s !== undefined) p.s = msg.s ? 1 : 0;
+        if (p.logged !== false && old !== name) this.addLog({ k: 'rename', o: old, n: name, s: p.sid || undefined });
+        if (!p.s && p.logged === false) { p.logged = true; this.logJoin(p); }
+        ws.serializeAttachment(p);
+        this.flush();
+        this.broadcast({ t: 'prof', id: p.id, char, name, s: p.s });
         return;
       }
       case 'ping':

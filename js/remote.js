@@ -3,6 +3,7 @@ import { animateBody, pokePress, pokeRelease } from './anim.js';
 import { makeBallMesh } from './snowball.js';
 import { enableOutline } from './outline.js';
 import { ballSizeOf } from './abilities.js';
+import { whiteCopy } from './whiteout.js';
 
 // ─────────────────────────────────────────────
 // 다른 플레이어들 (서버에서 받은 위치로 부드럽게 따라감)
@@ -72,17 +73,51 @@ export class RemotePlayers {
       if (ghost.model) { body.add(ghost.model); r.model = ghost.model; }
       this.dropGhost(ghost);
     }
-    this.getModel(p.char).then((model) => {
-      if (!this.map.has(p.id) || this.map.get(p.id) !== r) return;
-      if (r.model) body.remove(r.model); // 예전 떼리앙 모습을 새 것으로 바꿈
-      const copy = model.clone(true); // 지오메트리/재질은 공유 → 메모리 절약
-      copy.visible = true; // 원본이 잠깐 숨겨진 상태여도 항상 보이게
-      body.add(copy);
-      r.model = copy;
-      const d = copy.userData.dims; // 떼리앙마다 손 위치·키가 다름
-      if (d) { ball.position.fromArray(d.hand); ball2.position.fromArray(d.hand2); }
-    }).catch((err) => console.error('다른 플레이어 떼리앙 표시 실패', p.char, err));
+    r.sel = !!p.s; // 떼리앙을 고르는 중 → 눈사람처럼 하얗게
+    this.loadModel(r);
   }
+
+  // 그 사람 떼리앙 모델을 불러와서 입힘 (떼리앙을 바꾸면 다시 부름)
+  loadModel(r) {
+    const seq = (r.loadSeq || 0) + 1;
+    r.loadSeq = seq;
+    const char = r.char;
+    this.getModel(char).then((model) => {
+      if (this.map.get(r.id) !== r || r.loadSeq !== seq) return;
+      r.src = model;
+      this.applyLook(r);
+    }).catch((err) => console.error('다른 플레이어 떼리앙 표시 실패', char, err));
+  }
+
+  // 지금 모습으로 바꿔 끼움: 고르는 중이면 하얀 복사본, 아니면 원래 색
+  applyLook(r) {
+    if (!r.src) return;
+    let next;
+    if (r.sel) next = whiteCopy(r.src);
+    else { next = r.src.clone(true); next.visible = true; } // 지오메트리/재질은 공유 → 메모리 절약. 원본이 잠깐 숨겨진 상태여도 항상 보이게
+    if (r.model) r.body.remove(r.model); // 예전 모습을 새 것으로 바꿈
+    r.body.add(next);
+    r.model = next;
+    const d = next.userData.dims; // 떼리앙마다 손 위치·키가 다름
+    if (d) { r.ball.position.fromArray(d.hand); r.ball2.position.fromArray(d.hand2); }
+  }
+
+  // 떼리앙·닉네임이 바뀜 (다시 접속하지 않고 그 자리에서)
+  setProfile(id, char, name) {
+    const r = this.map.get(id);
+    if (!r) return null;
+    const oldName = r.name;
+    if (name && name !== r.name) { r.name = name; r.label.textContent = name; }
+    if (char && char !== r.char) {
+      r.char = char;
+      const size = ballSizeOf(char);
+      r.ball.scale.setScalar(size); r.ball2.scale.setScalar(size);
+      this.loadModel(r);
+    }
+    return oldName;
+  }
+
+  isSel(id) { return !!this.map.get(id)?.sel; }
 
   labelOf(id) { return this.map.get(id)?.label || null; }
 
@@ -101,6 +136,8 @@ export class RemotePlayers {
     r.m = !!m.m; r.g = !!m.g; r.a = !!m.a; r.d = m.d || 0;
     const b = m.b || 0; // 0: 없음, 1: 하나, 2: 양손에 하나씩 (치떼링)
     if (b !== r.b) { r.b = b; r.ball.visible = b > 0; r.ball2.visible = b === 2; }
+    const sel = !!m.s;
+    if (sel !== r.sel) { r.sel = sel; this.applyLook(r); }
     return fell ? r.root.position : null;
   }
 

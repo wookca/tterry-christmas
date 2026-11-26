@@ -740,6 +740,7 @@ function openSelect() {
   state.playing = false;
   setPlaying(false);
   if (player.visible) track('character_change_open');
+  lastSent = null; // 고르는 중(하얗게)을 바로 알림
   state.target = null;
   state.keys.clear();
   endAction(true);
@@ -787,7 +788,7 @@ async function startGame() {
   myLabel.textContent = myName();
   if (state.online) {
     $('hudName').textContent = `${charName(ch, state.variant)} · ${myName()}`;
-    if (!peeked && (!net || net.watching)) showEnterFade(net ? net.ch : START_CH); // 처음 입장: 서버가 채널 모습을 알려줄 때까지 가림 (미리 받아 뒀으면 안 가림)
+    if (!peeked && !welcomed) showEnterFade(net ? net.ch : START_CH); // 처음 입장: 서버가 채널 모습을 알려줄 때까지 가림 (미리 받아 뒀으면 안 가림)
     connectOnline(ch);
   }
   $('liteBtn').textContent = USE_LITE ? '원본 모델로 보기' : '경량 모델로 보기';
@@ -1464,6 +1465,7 @@ function checkSnowballHits() {
     // 다른 사람이 맞음: 눈덩이가 부서지고, 내가 던진 공이면 맞은 사람에게 알려줌 (그 사람이 쓰러짐)
     for (const r of remotes.map.values()) {
       if (String(r.id) === ball.owner || campfire.inSafeZone(r.root.position) || !hitsBody(pos, r.root.position, r.model?.userData.dims, ball)) continue;
+      if (r.sel) return true; // 떼리앙 고르는 중(하얀 모습): 눈사람처럼 눈덩이만 부서지고 안 쓰러짐
       if (ball.owner === 'me') { count('hits_given'); addStat('hits'); } // 지떼링 해금용 맞힌 수 (js/eggs.js)
       if (ball.owner === 'me') net?.send({ t: 'hit', id: r.id, d: fallDirFor(ball.velocity, r.yaw) > 0 ? 1 : 2 });
       return true;
@@ -1685,6 +1687,7 @@ myLabel.style.display = 'none';
 $('labels').appendChild(myLabel);
 // 채팅: 서버(버전 13부터)가 떼리앙 말투로 바꿔서 모두에게 보냄. 혼자 하기·옛 서버는 내 화면에서만 바꿔서 보여줌
 let chatOnServer = false;
+let selOnServer = false; // 새 서버(14~): 고르는 중인 사람을 하얗게 보여 주고, 떼리앙 변경을 다시 접속 없이 알림
 const chat = new Chat({
   root: $('chat'), log: $('chatLog'), form: $('chatForm'), input: $('chatInput'),
   labelOf: (id) => (id === 'me' || (net && id === net.id) ? myLabel : remotes.labelOf(id)),
@@ -1781,6 +1784,13 @@ const joinLog = new JoinLog({ button: $('logBtn'), panel: $('logPanel'), list: $
 let joinedCh = 0; // 애널리틱스: 마지막으로 알린 채널
 let sentProfile = null; // 서버에 마지막으로 알린 { char, name }
 function connectOnline(ch) {
+  if (selOnServer && net) {
+    // 새 서버: 고르는 동안에도 이미 들어가 있음 (다른 사람에게 하얗게 보임) → 바뀐 떼리앙·닉네임만 그 자리에서 알림
+    syncProfile(!entered);
+    entered = true;
+    lastSent = null;
+    return;
+  }
   if (net && net.watching) {
     // 떼리앙을 고르는 동안 미리 접속해 둔 연결로 바로 들어감 (채널 모습은 이미 받아 둠)
     net.join(helloInfo, net.ch);
@@ -1797,12 +1807,39 @@ function connectOnline(ch) {
   net.ch = START_CH;
   net.join(helloInfo, START_CH);
 }
-// 서버에 처음 알리는 내 정보 (떼리앙·닉네임·자리)
+// 서버에 처음 알리는 내 정보 (떼리앙·닉네임·자리, 고르는 중인지)
 function helloInfo() {
+  const at = myNetPos();
   return {
     ...(sentProfile = { name: myName(), char: myCharCode() }),
-    x: player.position.x, z: player.position.z, yaw: state.yaw,
+    x: at.x, z: at.z, yaw: at.yaw,
+    ...(selOnServer && !state.playing ? { s: 1 } : {}),
   };
+}
+// 서버에 알리는 내 자리. 처음 들어와 고르는 중이면 아직 안 나타났으니 나타날 자리(가장자리)에서 중심을 보는 모습
+function myNetPos() {
+  if (player.visible) return { x: player.position.x, z: player.position.z, yaw: state.yaw };
+  return { x: state.spawn.x, z: state.spawn.z, yaw: Math.atan2(-state.spawn.x, -state.spawn.z) };
+}
+// 떼리앙·닉네임이 서버에 알린 것과 다르면 다시 접속하지 않고 알림 (새 서버). force: 처음 [시작]
+let entered = false;  // 처음 [시작]을 눌렀음
+let welcomed = false; // 서버에 한 번이라도 들어감
+function syncProfile(force, sel = 0) {
+  if (!net || !net.connected) return; // 아직 안 들어감 → 들어갈 때(onWelcome) 다시 확인
+  const now = { char: myCharCode(), name: myName() };
+  if (!force && sentProfile && sentProfile.char === now.char && sentProfile.name === now.name) return;
+  net.send({ t: 'prof', ...now, s: sel });
+  sentProfile = now;
+}
+// 처음 들어와 고르는 중이라 아직 채널 기록에 안 들어간 사람들 (고르기를 마치면 그때 '들어옴')
+const freshIds = new Set();
+let myFreshLog = false; // 나도 처음 고르는 중이라 아직 기록에 '들어옴'이 없음
+// 떼리앙 고르는 화면을 열자마자 서버에 들어감 (새 서버): 다른 사람 화면에는 하얀 떼리앙으로 보이고, 채널 기록에는 [시작]을 누를 때 남음
+function joinEarly() {
+  if (net) return;
+  makeNet();
+  net.ch = START_CH;
+  net.join(helloInfo, START_CH);
 }
 // 떼리앙을 고르는 동안 서버에 미리 접속: 채널의 다른 사람·눈무더기를 받아 두기만 하고 나는 아직 안 들어감
 // (다른 사람 화면에도, 채널 기록에도 안 나옴) → [시작]을 누르면 같은 연결로 바로 입장
@@ -1823,6 +1860,9 @@ function makeNet() {
     },
     onWelcome: (m) => {
       remotes.clear();
+      welcomed = true;
+      freshIds.clear();
+      for (const p of m.players) if (p.nw) freshIds.add(p.id);
       applyMap(net.ch); // 꽉 차서 다른 채널로 넘어갔을 수도 있으니 맵 다시 맞춤
       if (Array.isArray(m.piles)) snowPiles.setFromServer(m.piles);
       else if (!snowPiles.local) startLocalPiles(); // 옛 서버는 더미를 모르므로 내 컴퓨터가 놓음
@@ -1832,23 +1872,45 @@ function makeNet() {
       joinedCh = net.ch;
       if (m.name) { const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS[0]; $('hudName').textContent = `${charName(ch, state.variant)} · ${m.name}`; myLabel.textContent = m.name; }
       joinLog.welcome(net.ch, m.log, m.now, m.name || myName());
+      myFreshLog = selOnServer && !entered;
+      if (myFreshLog) net.lastName = null; // 처음 고르는 중에 끊겨 다시 들어가도 '닉네임 변경'이 아닌 새로 들어옴으로
+      if (selOnServer && entered) syncProfile(false, state.playing ? 0 : 1); // [시작]을 누른 뒤에 들어갔으면 그사이 바뀐 떼리앙·닉네임을 알림
       lastSent = null;
       updateOnlineHud();
       requestAnimationFrame(() => requestAnimationFrame(hideEnterFade)); // 새 모습이 한 번 그려진 뒤에 걷어냄
     },
-    onJoin: (p, re) => { if (net.id) joinLog.join(p.name || '', re, !!re && remotes.hasName(re)); remotes.add(p, re); updateOnlineHud(); },
+    onJoin: (p, re) => {
+      if (p.nw) freshIds.add(p.id); // 처음 들어와 고르는 중: 기록은 [시작]을 누를 때
+      else if (net.id) joinLog.join(p.name || '', re, !!re && remotes.hasName(re));
+      remotes.add(p, re); updateOnlineHud();
+    },
     onLeave: (id) => {
       const name = remotes.nameOf(id);
       remotes.remove(id, true); // 떼리앙 변경으로 다시 접속하는 거면 사라지지 않게 잠깐 남겨 둠
+      if (freshIds.delete(id)) { updateOnlineHud(); return; } // 고르기만 하다 나감: 기록 없음
       if (net.id) joinLog.leave(name, !!name && remotes.hasName(name)); // 미리 접속 중(아직 안 들어감)엔 기록 안 함
       updateOnlineHud();
     },
     onState: (m) => {
+      if (!m.s && freshIds.delete(m.id)) joinLog.join(remotes.nameOf(m.id) || '', null, false); // 고르기를 마치고 들어옴
       const fellAt = remotes.update(m);
       if (fellAt) playTte({ ouch: true, volume: tteVolumeAt(fellAt), who: m.id }); // 다른 떼리앙이 맞아 쓰러짐: "떼엥"
     },
     onHit: (m) => tryKnockDown(m.d === 2 ? -1 : 1),
     onPile: (m) => snowPiles.apply(m),
+    onProfile: (m) => {
+      if (m.id === net.id) {
+        // 내 떼리앙·닉네임이 서버에 반영됨 (서버가 다듬은 닉네임으로 표시)
+        const ch = CHARACTERS.find((c) => c.id === state.selectedId) || CHARACTERS[0];
+        if (m.name) { $('hudName').textContent = `${charName(ch, state.variant)} · ${m.name}`; myLabel.textContent = m.name; }
+        if (m.name) joinLog.mine(m.name, myFreshLog && !m.s);
+        if (!m.s) myFreshLog = false;
+        return;
+      }
+      const oldName = remotes.setProfile(m.id, m.char, m.name);
+      if (freshIds.has(m.id)) { if (!m.s) { freshIds.delete(m.id); joinLog.join(m.name || '', null, false); } }
+      else if (oldName && m.name && oldName !== m.name) joinLog.rename(oldName, m.name);
+    },
     onChat: (m) => chat.add({ id: m.id, name: m.name, text: m.text, mine: m.id === net.id }),
     onPoke: (m) => {
       const at = remotes.poke(m);
@@ -1869,10 +1931,11 @@ function makeNet() {
 // 옛 서버(버전 12 전)는 속도를 안 전해 주므로 예전처럼 0.1초마다
 let lastSent = null, lastSendAt = 0, sendEvery = 200, velFrom = null, lastFlags = '';
 function sendState() {
-  if (!net || !net.connected || !state.playing) return;
+  if (!net || !net.connected || (!state.playing && !selOnServer)) return;
   const now = performance.now();
+  const sel = state.playing ? 0 : 1; // 떼리앙 고르는 중 → 다른 사람 화면에서 하얗게
   // 쓰러짐·눈덩이 들기·조준 같은 상태가 바뀌면 기다리지 않고 바로 (0.05초 간격까지)
-  const flags = `${state.walk > 0.5 ? 1 : 0}${state.gathering ? 1 : 0}${state.hasBall ? (state.ball2 ? 2 : 1) : 0}${state.aiming ? 1 : 0}${state.down ? (state.down.dir > 0 ? 1 : 2) : 0}`;
+  const flags = `${state.walk > 0.5 ? 1 : 0}${state.gathering ? 1 : 0}${state.hasBall ? (state.ball2 ? 2 : 1) : 0}${state.aiming ? 1 : 0}${state.down ? (state.down.dir > 0 ? 1 : 2) : 0}${sel}`;
   const wait = flags !== lastFlags ? 50 : sendEvery;
   if (now - lastSendAt < wait) return;
   lastFlags = flags;
@@ -1883,13 +1946,15 @@ function sendState() {
     if (Math.hypot(vx, vz) > 12 || now - velFrom.t > 2500) { vx = 0; vz = 0; } // 순간이동(채널 이동·다시 태어남)이나 오래 멈춤
   }
   velFrom = { t: now, x: player.position.x, z: player.position.z };
+  const at = myNetPos();
   const st = {
     t: 'state',
-    x: Math.round(player.position.x * 100) / 100, z: Math.round(player.position.z * 100) / 100,
-    yaw: Math.round(state.yaw * 100) / 100,
+    x: Math.round(at.x * 100) / 100, z: Math.round(at.z * 100) / 100,
+    yaw: Math.round(at.yaw * 100) / 100,
     m: state.walk > 0.5 ? 1 : 0, g: state.gathering ? 1 : 0, b: state.hasBall ? (state.ball2 ? 2 : 1) : 0, a: state.aiming ? 1 : 0,
     d: state.down ? (state.down.dir > 0 ? 1 : 2) : 0,
     vx: Math.round(vx * 100) / 100, vz: Math.round(vz * 100) / 100,
+    ...(sel ? { s: 1 } : {}),
   };
   const key = JSON.stringify(st);
   if (key === lastSent && now - lastSendAt < 2000) return;
@@ -1927,6 +1992,7 @@ async function init() {
   const server = await detectServer();
   if (server && (server.version || 1) < 12) sendEvery = 100;
   chatOnServer = !!server && (server.version || 1) >= 13;
+  selOnServer = !!server && (server.version || 1) >= 14;
   if (server && (server.version || 1) < 2) console.warn('[Tterry] 서버가 옛날 버전이에요. deploy.bat을 다시 실행하면 쓰러지기가 다른 사람에게도 보여요.');
   state.online = !!server;
   $('nameRow').classList.remove('hidden');
@@ -1954,7 +2020,7 @@ async function init() {
   selectCard(first.id);
   $('loading').classList.add('hidden');
   openSelect();
-  if (state.online) peekOnline(); // 고르는 동안 미리 접속 (남에게는 안 보임)
+  if (state.online) { if (selOnServer) joinEarly(); else peekOnline(); } // 고르는 동안 미리 접속 (새 서버: 남에게 하얗게 보임, 옛 서버: 안 보임)
 
   // 디버그/테스트용
   window.__game = { state, player, camera, CHARACTERS, snowballs, remotes, get net() { return net; } };

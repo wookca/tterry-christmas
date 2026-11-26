@@ -108,6 +108,16 @@ export class JoinLog {
     else this.render();
   }
 
+  // 다른 사람이 다시 접속하지 않고 닉네임을 바꿈
+  rename(o, n) { this.push({ k: 'rename', o, n }); }
+
+  // 내 닉네임이 서버에 반영됨. freshJoin: 처음 고르기를 마치고 [시작] → 이제 '들어옴'
+  mine(name, freshJoin) {
+    if (freshJoin) this.push({ k: 'join', n: name, mine: true });
+    else if (this.lastMine && this.lastMine !== name) this.push({ k: 'rename', o: this.lastMine, n: name, mine: true });
+    this.lastMine = name;
+  }
+
   // 다른 사람이 나감 (같은 닉네임이 아직 남아 있으면 끊긴 옛 연결이 정리된 것뿐이라 안 남김)
   leave(name, stillHere) {
     if (!name || stillHere) return;
